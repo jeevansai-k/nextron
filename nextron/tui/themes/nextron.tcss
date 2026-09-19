@@ -1,0 +1,407 @@
+/* ===================================================================== *
+ * NEXTRON stylesheet                                                    *
+ *                                                                        *
+ * The brand hierarchy is declared here as CSS variables and mirrored by   *
+ * nextron/tui/themes/palette.py, which supplies the same values to        *
+ * Textual's own theme tokens. No colour outside this block is used.      *
+ * ===================================================================== */
+
+$nextron-primary:   #4B0082;
+$nextron-secondary: #5D3D94;
+$nextron-accent:    #9B59B6;
+$nextron-surface:   #C8A2C8;
+$nextron-text:      #E6E6FA;
+
+/* Large surfaces: Primary/Secondary at lower luminance, same hue. */
+$nextron-background: #10001c;
+$nextron-panel:      #1f1432;
+$nextron-raised:     #301f4c;
+$nextron-muted:      #7c647c;
+
+Screen {
+    background: $background;
+    color: $foreground;
+}
+
+/* --------------------------------------------------------------------- *
+ * Chrome
+ * --------------------------------------------------------------------- */
+
+#app-header {
+    height: 3;
+    padding: 0 1;
+    background: $nextron-primary;
+    color: $nextron-text;
+    content-align: left middle;
+    border-bottom: heavy $nextron-accent;
+}
+
+#app-header .header-mode {
+    color: $nextron-surface;
+}
+
+Footer {
+    background: $nextron-panel;
+    color: $nextron-text;
+}
+
+/* --------------------------------------------------------------------- *
+ * Splash
+ * --------------------------------------------------------------------- */
+
+SplashScreen {
+    align: center middle;
+}
+
+#splash-body {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+
+#splash-banner {
+    width: 100%;
+    height: auto;
+    content-align: center middle;
+}
+
+#splash-tagline {
+    width: 100%;
+    height: auto;
+    padding-top: 1;
+    color: $nextron-surface;
+    text-align: center;
+    text-style: italic;
+}
+
+#splash-status {
+    width: 100%;
+    height: auto;
+    padding-top: 1;
+    color: $nextron-accent;
+    text-align: center;
+}
+
+/* --------------------------------------------------------------------- *
+ * Dashboard
+ * --------------------------------------------------------------------- */
+
+#dashboard-body {
+    height: 1fr;
+    layout: grid;
+    grid-size: 3;
+    /* One gutter between columns, so all three end up the same width and the
+       vertical seams are evenly spaced however wide the terminal is. */
+    grid-gutter: 0 1;
+    grid-columns: 1fr 1fr 1fr;
+}
+
+#dashboard-left,
+#dashboard-mid,
+#dashboard-right {
+    width: 100%;
+    height: 100%;
+    scrollbar-size-vertical: 1;
+    /* Reserve the scrollbar's column whether or not one is showing, so a
+       column that starts scrolling does not narrow its panels by a character
+       and knock the seams out of line with its neighbours. */
+    scrollbar-gutter: stable;
+}
+
+InfoPanel {
+    height: auto;
+    min-height: 5;
+    margin-bottom: 1;
+    padding: 0 1;
+    background: $nextron-panel;
+    border: round $nextron-muted;
+    border-title-color: $nextron-accent;
+    border-title-style: bold;
+    color: $nextron-text;
+}
+
+InfoPanel.-fills-column {
+    height: 1fr;
+    min-height: 5;
+    /* No trailing margin: this panel has to reach the same row as the
+       Activity log in the next column. */
+    margin-bottom: 0;
+}
+
+InfoPanel:focus {
+    border: round $nextron-accent;
+    background: $nextron-raised;
+}
+
+InfoPanel.-panel-active {
+    border: round $nextron-accent;
+}
+
+InfoPanel.-panel-error {
+    border: round $nextron-primary;
+}
+
+CountdownPanel {
+    height: 8;
+    margin-bottom: 1;
+    padding: 0 1;
+    background: $nextron-panel;
+    border: round $nextron-muted;
+    border-title-color: $nextron-accent;
+    border-title-style: bold;
+    content-align: center middle;
+}
+
+ActivityLog {
+    height: 1fr;
+    padding: 0 1;
+    background: $nextron-panel;
+    border: round $nextron-muted;
+    border-title-color: $nextron-accent;
+    border-title-style: bold;
+    scrollbar-size-vertical: 1;
+}
+
+ActivityLog:focus {
+    border: round $nextron-accent;
+}
+
+NavMenu {
+    height: auto;
+    max-height: 20;
+    margin-bottom: 1;
+    background: $nextron-panel;
+    border: round $nextron-muted;
+    border-title-color: $nextron-accent;
+    border-title-style: bold;
+    scrollbar-size-vertical: 1;
+}
+
+NavMenu:focus {
+    border: round $nextron-accent;
+}
+
+NavMenu {
+    padding: 0 0 1 0;
+}
+
+NavMenu > ListItem {
+    padding: 0 1;
+    background: $nextron-panel;
+    color: $nextron-text;
+}
+
+/* Section headers: dimmed, not selectable, with breathing room above. */
+NavMenu > ListItem.menu-section {
+    padding: 1 1 0 1;
+    background: $nextron-panel;
+}
+
+/* ...except the first one, which already has the panel border above it. */
+NavMenu > ListItem.menu-section:first-of-type {
+    padding: 0 1 0 1;
+}
+
+/* Selection highlight: dark, so the row reads as recessed rather than
+   flood-filled. Unfocused is darker still. */
+NavMenu > ListItem.-highlight {
+    background: $nextron-raised;
+    color: $nextron-text;
+}
+
+NavMenu:focus > ListItem.-highlight {
+    background: $nextron-primary;
+    color: $nextron-text;
+    text-style: bold;
+}
+
+NavMenu > ListItem.-hovered {
+    background: $nextron-raised;
+}
+
+/* --------------------------------------------------------------------- *
+ * Generic screens
+ * --------------------------------------------------------------------- */
+
+.screen-title {
+    height: 1;
+    padding: 0 1;
+    color: $nextron-accent;
+    text-style: bold;
+}
+
+.screen-hint {
+    height: auto;
+    padding: 0 1;
+    color: $nextron-surface;
+}
+
+.screen-body {
+    height: 1fr;
+    padding: 1;
+    background: $nextron-panel;
+    border: round $nextron-muted;
+    border-title-color: $nextron-accent;
+    border-title-style: bold;
+}
+
+DataTable {
+    height: 1fr;
+    background: $nextron-panel;
+    color: $nextron-text;
+    scrollbar-size-vertical: 1;
+}
+
+DataTable > .datatable--header {
+    background: $nextron-secondary;
+    color: $nextron-text;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: $nextron-primary;
+    color: $nextron-text;
+    text-style: bold;
+}
+
+DataTable > .datatable--hover {
+    background: $nextron-raised;
+}
+
+ListView {
+    background: $nextron-panel;
+    scrollbar-size-vertical: 1;
+}
+
+ListView > ListItem {
+    padding: 0 1;
+    background: $nextron-panel;
+    color: $nextron-text;
+}
+
+ListView > ListItem.-highlight {
+    background: $nextron-raised;
+    color: $nextron-text;
+}
+
+ListView:focus > ListItem.-highlight {
+    background: $nextron-primary;
+    color: $nextron-text;
+    text-style: bold;
+}
+
+ListView > ListItem.-hovered {
+    background: $nextron-raised;
+}
+
+RichLog {
+    background: $nextron-panel;
+    color: $nextron-text;
+    scrollbar-size-vertical: 1;
+}
+
+Input {
+    background: $nextron-raised;
+    color: $nextron-text;
+    border: round $nextron-muted;
+}
+
+Input:focus {
+    border: round $nextron-accent;
+}
+
+Button {
+    background: $nextron-secondary;
+    color: $nextron-text;
+    border: none;
+    min-width: 12;
+}
+
+Button:focus {
+    background: $nextron-accent;
+    text-style: bold;
+}
+
+Switch {
+    background: $nextron-raised;
+}
+
+Switch > .switch--slider {
+    background: $nextron-muted;
+    color: $nextron-accent;
+}
+
+/* --------------------------------------------------------------------- *
+ * Modals
+ * --------------------------------------------------------------------- */
+
+ConfirmScreen {
+    align: center middle;
+}
+
+PromptScreen {
+    align: center middle;
+}
+
+.modal-box {
+    width: 66;
+    height: auto;
+    padding: 1 2;
+    background: $nextron-panel;
+    border: thick $nextron-accent;
+    border-title-color: $nextron-accent;
+    border-title-style: bold;
+}
+
+.modal-question {
+    height: auto;
+    padding-bottom: 1;
+    color: $nextron-text;
+}
+
+.modal-hint {
+    height: auto;
+    padding-bottom: 1;
+    color: $nextron-surface;
+}
+
+.modal-actions {
+    height: auto;
+    align: right middle;
+}
+
+.modal-actions Button {
+    margin-left: 2;
+}
+
+/* --------------------------------------------------------------------- *
+ * About
+ * --------------------------------------------------------------------- */
+
+#about-banner {
+    height: auto;
+    content-align: center middle;
+}
+
+#about-card {
+    width: 100%;
+    height: auto;
+    padding: 1 2;
+    background: $nextron-panel;
+    border: round $nextron-accent;
+}
+
+/* --------------------------------------------------------------------- *
+ * Verification / doctor report
+ * --------------------------------------------------------------------- */
+
+#report-log {
+    height: 1fr;
+}
+
+.report-summary {
+    height: auto;
+    padding: 1;
+    color: $nextron-accent;
+    text-style: bold;
+}

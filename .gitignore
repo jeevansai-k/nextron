@@ -1,0 +1,63 @@
+# --------------------------------------------------------------------------- #
+# Python
+# --------------------------------------------------------------------------- #
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# --------------------------------------------------------------------------- #
+# Virtual environments
+# --------------------------------------------------------------------------- #
+.venv/
+venv/
+env/
+
+# --------------------------------------------------------------------------- #
+# Tooling caches
+# --------------------------------------------------------------------------- #
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --------------------------------------------------------------------------- #
+# Your data. NEXTRON keeps everything under ~/.config/nextron, never in the
+# repository -- but these patterns are here so that a stray copy, a symlink or
+# a hasty `git add -A` can never publish a credential or a server address.
+# --------------------------------------------------------------------------- #
+Sources
+Sources/
+*.ovpn
+*.wgconf
+*.conf
+!.vscode/*.conf
+credentials*
+*auth*.txt
+*.key
+*.pem
+*.crt
+*.p12
+*.log
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+
+# --------------------------------------------------------------------------- #
+# Working documents: notes, not code. Nothing here is needed to run NEXTRON.
+# Delete this line if you would rather publish the design spec as well.
+# --------------------------------------------------------------------------- #
+nextron.md
+
+# Editor / OS noise
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
