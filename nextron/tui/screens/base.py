@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -9,14 +10,15 @@ from textual.screen import Screen
 from textual.widgets import Footer, Static
 
 from nextron.core import constants
-from nextron.state.manager import AppState
-from nextron.tui.widgets.pulse import marker_for, pulse_style
+from nextron.state.manager import AppState, ServiceStatus
+from nextron.tui.widgets import signal
+from nextron.tui.widgets.pulse import marker_for
 
-__all__ = ["HeaderBar", "NextronScreen"]
+__all__ = ["HeaderBar", "NextronScreen", "socks_only"]
 
 
 class HeaderBar(Static):
-    """The application header: name, routing chain and live status."""
+    """One line: who, which mode, and -- above all -- protected or exposed."""
 
     def __init__(self, **kwargs) -> None:
         super().__init__("", id="app-header", **kwargs)
@@ -31,29 +33,53 @@ class HeaderBar(Static):
 
     def render_state(self, state: AppState | None, *, subtitle: str = "") -> None:
         """Redraw the header from a state snapshot."""
-        line = Text(no_wrap=True, overflow="ellipsis")
-        line.append(f"{constants.APP_NAME} ", style=f"bold {constants.COLOR_TEXT}")
-        line.append(f"v{constants.VERSION}", style=constants.COLOR_SURFACE)
+        left = Text(no_wrap=True, overflow="ellipsis")
+        left.append("⬥ ", style=f"bold {constants.ACCENT}")
+        left.append(constants.APP_NAME, style=f"bold {constants.INK_TEXT}")
+
+        if subtitle:
+            left.append("  ›  ", style=constants.INK_FAINT)
+            left.append(subtitle, style=f"bold {constants.ACCENT}")
 
         if state is not None:
-            line.append("   ", style="")
-            line.append(state.routing_mode.label, style=f"bold {constants.COLOR_TEXT}")
-            line.append(f"  {state.routing_mode.chain}", style=constants.COLOR_SURFACE)
-            line.append("   ", style="")
-            line.append(
-                marker_for(state.route_status, self._frame) + " ",
-                style=f"bold {pulse_style(state.route_status, self._frame)}",
+            left.append("   ⏐  ", style=constants.INK_LINE)
+            left.append(state.routing_mode.label, style=f"bold {constants.INK_TEXT}")
+            left.append("  ")
+            left.append_text(signal.chain(state.routing_mode, state))
+            left.append("   ⏐  ", style=constants.INK_LINE)
+
+            glyph, word, colour = signal.protection(
+                state, socks_only=socks_only(self.app, state)
             )
-            line.append(
-                state.route_status.label, style=f"bold {constants.COLOR_TEXT}"
-            )
-            if state.public_ip:
-                line.append(f"   {state.public_ip}", style=constants.COLOR_SURFACE)
+            if word in {"CONNECTING", "DISCONNECTING"}:
+                glyph = marker_for(state.route_status, self._frame)
+            left.append(f"{glyph} {word}", style=f"bold {colour}")
+            if state.public_ip and state.route_status is ServiceStatus.ACTIVE:
+                left.append(f"  {state.public_ip}", style=constants.INK_TEXT)
                 if state.exit_country:
-                    line.append(f" ({state.exit_country})", style=constants.COLOR_SURFACE)
-        if subtitle:
-            line.append(f"   {subtitle}", style=constants.COLOR_SURFACE)
-        self.update(line)
+                    left.append(
+                        f" ∙ {state.exit_country}", style=constants.INK_MUTED
+                    )
+            elif word == "EXPOSED":
+                left.append("  direct connection", style=constants.INK_MUTED)
+
+        right = Text(f"v{constants.VERSION}", style=constants.INK_FAINT, no_wrap=True)
+        grid = Table.grid(expand=True)
+        grid.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
+        grid.add_column(justify="right", no_wrap=True)
+        grid.add_row(left, right)
+        self.update(grid)
+
+
+def socks_only(app, state: AppState) -> bool:
+    """Tor is carrying traffic, but only for apps that use its SOCKS port."""
+    runtime = getattr(app, "runtime", None)
+    if runtime is None or not state.routing_mode.uses_tor:
+        return False
+    if state.routing_mode.uses_vpn and state.vpn.status is ServiceStatus.ACTIVE:
+        # Tor over VPN / VPN over Tor: the VPN tunnel is already system-wide.
+        return False
+    return not runtime.routing.transparent.active
 
 
 class NextronScreen(Screen):

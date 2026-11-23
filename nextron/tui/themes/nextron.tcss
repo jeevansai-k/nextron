@@ -1,48 +1,61 @@
 /* ===================================================================== *
- * NEXTRON stylesheet                                                    *
+ * NEXTRON -- "Signal" stylesheet                                         *
  *                                                                        *
- * The brand hierarchy is declared here as CSS variables and mirrored by   *
- * nextron/tui/themes/palette.py, which supplies the same values to        *
- * Textual's own theme tokens. No colour outside this block is used.      *
+ * Quiet, violet-tinted neutrals. One accent (the brand violet) marks     *
+ * focus and keys. Four signal colours mean state and nothing else.       *
+ * Values mirror nextron/core/constants.py (INK_*, ACCENT, SIGNAL_*).     *
  * ===================================================================== */
 
-$nextron-primary:   #4B0082;
-$nextron-secondary: #5D3D94;
-$nextron-accent:    #9B59B6;
-$nextron-surface:   #C8A2C8;
-$nextron-text:      #E6E6FA;
+$ink-bg:      #0E0C13;
+$ink-panel:   #14111B;
+$ink-raised:  #1D1828;
+$ink-select:  #2E2142;
+$ink-line:    #2C2638;
+$ink-faint:   #6E6780;
+$ink-muted:   #A39CB2;
+$ink-text:    #ECE9F2;
 
-/* Large surfaces: Primary/Secondary at lower luminance, same hue. */
-$nextron-background: #10001c;
-$nextron-panel:      #1f1432;
-$nextron-raised:     #301f4c;
-$nextron-muted:      #7c647c;
+$accent:      #B48AD0;
+$accent-deep: #9B59B6;
+
+$ok:   #5FCF8C;
+$warn: #E3B45A;
+$err:  #EF6B73;
+$busy: #7FB3E6;
 
 Screen {
-    background: $background;
-    color: $foreground;
+    background: $ink-bg;
+    color: $ink-text;
 }
 
 /* --------------------------------------------------------------------- *
- * Chrome
+ * Chrome: a one-line status header and a quiet footer
  * --------------------------------------------------------------------- */
 
 #app-header {
-    height: 3;
+    height: 1;
     padding: 0 1;
-    background: $nextron-primary;
-    color: $nextron-text;
-    content-align: left middle;
-    border-bottom: heavy $nextron-accent;
-}
-
-#app-header .header-mode {
-    color: $nextron-surface;
+    background: $ink-panel;
+    color: $ink-text;
 }
 
 Footer {
-    background: $nextron-panel;
-    color: $nextron-text;
+    background: $ink-panel;
+    color: $ink-muted;
+}
+
+Footer FooterKey {
+    background: $ink-panel;
+}
+
+Footer FooterKey .footer-key--key {
+    color: $accent;
+    background: $ink-panel;
+    text-style: bold;
+}
+
+Footer FooterKey .footer-key--description {
+    color: $ink-muted;
 }
 
 /* --------------------------------------------------------------------- *
@@ -51,6 +64,7 @@ Footer {
 
 SplashScreen {
     align: center middle;
+    background: $ink-bg;
 }
 
 #splash-body {
@@ -69,154 +83,213 @@ SplashScreen {
     width: 100%;
     height: auto;
     padding-top: 1;
-    color: $nextron-surface;
+    color: $ink-muted;
     text-align: center;
-    text-style: italic;
 }
 
 #splash-status {
     width: 100%;
     height: auto;
     padding-top: 1;
-    color: $nextron-accent;
+    color: $busy;
     text-align: center;
 }
 
 /* --------------------------------------------------------------------- *
- * Dashboard
+ * Dashboard: menu | main | side
+ *
+ * Deliberately asymmetric: the route and the engines get the width, the
+ * menu is only as wide as its labels, and the log sits to the side.
  * --------------------------------------------------------------------- */
 
 #dashboard-body {
     height: 1fr;
-    layout: grid;
-    grid-size: 3;
-    /* One gutter between columns, so all three end up the same width and the
-       vertical seams are evenly spaced however wide the terminal is. */
-    grid-gutter: 0 1;
-    grid-columns: 1fr 1fr 1fr;
+    padding: 1 1 0 1;
 }
 
-#dashboard-left,
-#dashboard-mid,
-#dashboard-right {
-    width: 100%;
+#dashboard-left {
+    width: 36;
     height: 100%;
+    margin-right: 1;
     scrollbar-size-vertical: 1;
-    /* Reserve the scrollbar's column whether or not one is showing, so a
-       column that starts scrolling does not narrow its panels by a character
-       and knock the seams out of line with its neighbours. */
+}
+
+#dashboard-mid {
+    width: 2fr;
+    height: 100%;
+    margin-right: 1;
+    scrollbar-size-vertical: 1;
     scrollbar-gutter: stable;
 }
 
+#dashboard-right {
+    width: 1fr;
+    min-width: 38;
+    height: 100%;
+}
+
+#engine-row {
+    height: auto;
+}
+
+#engine-row > InfoPanel {
+    width: 1fr;
+    /* Tor's full panel is 11 rows; matching it keeps the pair level. */
+    min-height: 11;
+}
+
+#engine-row > InfoPanel:first-child {
+    margin-right: 1;
+}
+
+/* --------------------------------------------------------------------- *
+ * Panels
+ * --------------------------------------------------------------------- */
+
 InfoPanel {
     height: auto;
-    min-height: 5;
+    min-height: 3;
     margin-bottom: 1;
     padding: 0 1;
-    background: $nextron-panel;
-    border: round $nextron-muted;
-    border-title-color: $nextron-accent;
+    background: $ink-panel;
+    border: round $ink-line;
+    border-title-color: $ink-muted;
     border-title-style: bold;
-    color: $nextron-text;
+    color: $ink-text;
 }
 
 InfoPanel.-fills-column {
     height: 1fr;
-    min-height: 5;
-    /* No trailing margin: this panel has to reach the same row as the
-       Activity log in the next column. */
     margin-bottom: 0;
 }
 
 InfoPanel:focus {
-    border: round $nextron-accent;
-    background: $nextron-raised;
+    border: round $accent-deep;
+    border-title-color: $accent;
+    background: $ink-raised;
 }
 
+/* Engine state shows on the border title, not as a flood of colour. */
 InfoPanel.-panel-active {
-    border: round $nextron-accent;
+    border-title-color: $ok;
+}
+
+InfoPanel.-panel-busy {
+    border-title-color: $busy;
 }
 
 InfoPanel.-panel-error {
-    border: round $nextron-primary;
+    border: round $err;
+    border-title-color: $err;
+}
+
+InfoPanel.-panel-unused {
+    color: $ink-faint;
+    border-title-color: $ink-faint;
+}
+
+/* The route hero: the first thing the eye lands on. */
+InfoPanel#panel-routing {
+    padding: 0 2;
+    min-height: 7;
+}
+
+InfoPanel#panel-routing.-panel-active {
+    border: round $ok;
+}
+
+InfoPanel#panel-routing.-panel-warn {
+    border: round $warn;
+    border-title-color: $warn;
+}
+
+InfoPanel#panel-routing.-panel-busy {
+    border: round $busy;
 }
 
 CountdownPanel {
-    height: 8;
+    height: auto;
     margin-bottom: 1;
     padding: 0 1;
-    background: $nextron-panel;
-    border: round $nextron-muted;
-    border-title-color: $nextron-accent;
+    background: $ink-panel;
+    border: round $ink-line;
+    border-title-color: $ink-muted;
     border-title-style: bold;
-    content-align: center middle;
+}
+
+CountdownPanel:focus {
+    border: round $accent-deep;
+    border-title-color: $accent;
+    background: $ink-raised;
 }
 
 ActivityLog {
     height: 1fr;
     padding: 0 1;
-    background: $nextron-panel;
-    border: round $nextron-muted;
-    border-title-color: $nextron-accent;
+    background: $ink-panel;
+    border: round $ink-line;
+    border-title-color: $ink-muted;
     border-title-style: bold;
     scrollbar-size-vertical: 1;
 }
 
 ActivityLog:focus {
-    border: round $nextron-accent;
+    border: round $accent-deep;
+    border-title-color: $accent;
 }
+
+/* --------------------------------------------------------------------- *
+ * Navigation menu
+ * --------------------------------------------------------------------- */
 
 NavMenu {
     height: auto;
-    max-height: 20;
+    max-height: 22;
     margin-bottom: 1;
-    background: $nextron-panel;
-    border: round $nextron-muted;
-    border-title-color: $nextron-accent;
+    padding: 0 0 1 0;
+    background: $ink-panel;
+    border: round $ink-line;
+    border-title-color: $ink-muted;
     border-title-style: bold;
     scrollbar-size-vertical: 1;
 }
 
 NavMenu:focus {
-    border: round $nextron-accent;
-}
-
-NavMenu {
-    padding: 0 0 1 0;
+    border: round $accent-deep;
+    border-title-color: $accent;
 }
 
 NavMenu > ListItem {
     padding: 0 1;
-    background: $nextron-panel;
-    color: $nextron-text;
+    background: $ink-panel;
+    color: $ink-text;
 }
 
-/* Section headers: dimmed, not selectable, with breathing room above. */
 NavMenu > ListItem.menu-section {
     padding: 1 1 0 1;
-    background: $nextron-panel;
+    background: $ink-panel;
 }
 
-/* ...except the first one, which already has the panel border above it. */
 NavMenu > ListItem.menu-section:first-of-type {
     padding: 0 1 0 1;
 }
 
-/* Selection highlight: dark, so the row reads as recessed rather than
-   flood-filled. Unfocused is darker still. */
+/* Selection: a recessed violet row with an accent edge -- never a flood. */
 NavMenu > ListItem.-highlight {
-    background: $nextron-raised;
-    color: $nextron-text;
+    background: $ink-raised;
+    color: $ink-text;
 }
 
 NavMenu:focus > ListItem.-highlight {
-    background: $nextron-primary;
-    color: $nextron-text;
+    background: $ink-select;
+    color: $ink-text;
     text-style: bold;
+    border-left: outer $accent;
+    padding-left: 0;
 }
 
 NavMenu > ListItem.-hovered {
-    background: $nextron-raised;
+    background: $ink-raised;
 }
 
 /* --------------------------------------------------------------------- *
@@ -226,143 +299,192 @@ NavMenu > ListItem.-hovered {
 .screen-title {
     height: 1;
     padding: 0 1;
-    color: $nextron-accent;
+    color: $accent;
     text-style: bold;
 }
 
 .screen-hint {
     height: auto;
-    padding: 0 1;
-    color: $nextron-surface;
+    padding: 1 2 0 2;
+    color: $ink-muted;
 }
 
 .screen-body {
     height: 1fr;
-    padding: 1;
-    background: $nextron-panel;
-    border: round $nextron-muted;
-    border-title-color: $nextron-accent;
+    margin: 1 1 0 1;
+    padding: 0 1;
+    background: $ink-panel;
+    border: round $ink-line;
+    border-title-color: $ink-muted;
     border-title-style: bold;
+}
+
+.screen-body:focus-within {
+    border: round $accent-deep;
+    border-title-color: $accent;
 }
 
 DataTable {
     height: 1fr;
-    background: $nextron-panel;
-    color: $nextron-text;
+    background: $ink-panel;
+    color: $ink-text;
     scrollbar-size-vertical: 1;
 }
 
 DataTable > .datatable--header {
-    background: $nextron-secondary;
-    color: $nextron-text;
+    background: $ink-panel;
+    color: $ink-faint;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
-    background: $nextron-primary;
-    color: $nextron-text;
+    background: $ink-select;
+    color: $ink-text;
     text-style: bold;
 }
 
 DataTable > .datatable--hover {
-    background: $nextron-raised;
+    background: $ink-raised;
+}
+
+DataTable > .datatable--even-row {
+    background: $ink-panel;
 }
 
 ListView {
-    background: $nextron-panel;
+    background: $ink-panel;
     scrollbar-size-vertical: 1;
 }
 
 ListView > ListItem {
     padding: 0 1;
-    background: $nextron-panel;
-    color: $nextron-text;
+    background: $ink-panel;
+    color: $ink-text;
 }
 
 ListView > ListItem.-highlight {
-    background: $nextron-raised;
-    color: $nextron-text;
+    background: $ink-raised;
+    color: $ink-text;
 }
 
 ListView:focus > ListItem.-highlight {
-    background: $nextron-primary;
-    color: $nextron-text;
+    background: $ink-select;
+    color: $ink-text;
     text-style: bold;
 }
 
 ListView > ListItem.-hovered {
-    background: $nextron-raised;
+    background: $ink-raised;
 }
 
 RichLog {
-    background: $nextron-panel;
-    color: $nextron-text;
+    background: $ink-panel;
+    color: $ink-text;
     scrollbar-size-vertical: 1;
 }
 
 Input {
-    background: $nextron-raised;
-    color: $nextron-text;
-    border: round $nextron-muted;
+    background: $ink-raised;
+    color: $ink-text;
+    border: round $ink-line;
 }
 
 Input:focus {
-    border: round $nextron-accent;
+    border: round $accent-deep;
 }
 
 Button {
-    background: $nextron-secondary;
-    color: $nextron-text;
+    background: $ink-raised;
+    color: $ink-text;
     border: none;
     min-width: 12;
+    height: 1;
+    margin-top: 1;
+}
+
+Button:hover {
+    background: $ink-select;
 }
 
 Button:focus {
-    background: $nextron-accent;
+    background: $accent-deep;
+    color: $ink-text;
     text-style: bold;
 }
 
+Button.-primary {
+    background: $ink-select;
+}
+
+Button.-primary:focus {
+    background: $accent-deep;
+}
+
+Button.-error:focus {
+    background: $err;
+    color: $ink-bg;
+}
+
 Switch {
-    background: $nextron-raised;
+    background: $ink-raised;
 }
 
 Switch > .switch--slider {
-    background: $nextron-muted;
-    color: $nextron-accent;
+    background: $ink-line;
+    color: $ok;
+}
+
+#mode-list-column {
+    width: 58;
+    margin-right: 2;
+}
+
+#mode-list {
+    height: auto;
+}
+
+#mode-list > ListItem {
+    padding: 1 1;
+}
+
+#mode-detail-column {
+    width: 1fr;
+    padding: 1 0;
 }
 
 /* --------------------------------------------------------------------- *
  * Modals
  * --------------------------------------------------------------------- */
 
-ConfirmScreen {
+ConfirmScreen,
+PromptScreen,
+ReportScreen {
     align: center middle;
-}
-
-PromptScreen {
-    align: center middle;
+    background: $ink-bg 70%;
 }
 
 .modal-box {
-    width: 66;
+    width: 70;
+    max-width: 90%;
     height: auto;
+    max-height: 90%;
     padding: 1 2;
-    background: $nextron-panel;
-    border: thick $nextron-accent;
-    border-title-color: $nextron-accent;
+    background: $ink-panel;
+    border: round $accent-deep;
+    border-title-color: $accent;
     border-title-style: bold;
 }
 
 .modal-question {
     height: auto;
     padding-bottom: 1;
-    color: $nextron-text;
+    color: $ink-text;
 }
 
 .modal-hint {
     height: auto;
     padding-bottom: 1;
-    color: $nextron-surface;
+    color: $ink-muted;
 }
 
 .modal-actions {
@@ -386,9 +508,10 @@ PromptScreen {
 #about-card {
     width: 100%;
     height: auto;
+    margin: 0 1;
     padding: 1 2;
-    background: $nextron-panel;
-    border: round $nextron-accent;
+    background: $ink-panel;
+    border: round $ink-line;
 }
 
 /* --------------------------------------------------------------------- *
@@ -396,12 +519,11 @@ PromptScreen {
  * --------------------------------------------------------------------- */
 
 #report-log {
-    height: 1fr;
+    height: 18;
 }
 
 .report-summary {
     height: auto;
-    padding: 1;
-    color: $nextron-accent;
+    padding: 1 0 0 0;
     text-style: bold;
 }

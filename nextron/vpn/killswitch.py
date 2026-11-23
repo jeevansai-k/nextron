@@ -17,6 +17,7 @@ pretending the machine is protected.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import socket
 from dataclasses import dataclass
@@ -100,8 +101,8 @@ class KillSwitch:
             return False, "disabled in settings"
         if self.backend_name() is None:
             return False, "neither nft nor iptables is installed"
-        if not process.is_root() and not process.sudo_available():
-            return False, "root privileges unavailable"
+        if not process.can_escalate():
+            return False, "needs root -- " + process.PRIVILEGE_HINT
         return True, None
 
     # -- engage / release --------------------------------------------------- #
@@ -121,7 +122,9 @@ class KillSwitch:
             log.warning("Kill switch not engaged: %s", reason)
             return self.status()
 
-        hosts = tuple(_resolve_hosts(allow_hosts or []))
+        # getaddrinfo blocks; on the event loop it would freeze the interface
+        # for as long as the resolver takes (seconds on a bad network).
+        hosts = tuple(await asyncio.to_thread(_resolve_hosts, allow_hosts or []))
         interfaces = tuple(allow_interfaces or [])
         backend = self.backend_name()
 

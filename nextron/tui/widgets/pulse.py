@@ -56,7 +56,6 @@ def pulse_style(status: ServiceStatus, frame: int) -> str:
     if status is ServiceStatus.ACTIVE:
         step = (frame // _ACTIVE_HOLD) % len(_ACTIVE_FRAMES)
         if _ACTIVE_DIM[step]:
-            from nextron.core import constants
-
-            return constants.COLOR_SECONDARY
+            # The bottom of the breath: the same green, dimmed.
+            return "#3D8A5D"
     return status.color

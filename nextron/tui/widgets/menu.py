@@ -92,31 +92,31 @@ class NavMenu(ListView):
 
     @staticmethod
     def _header(name: str) -> ListItem:
-        text = Text(name.upper(), style=f"bold {constants.COLOR_SECONDARY}")
+        text = Text(name, style=f"italic {constants.INK_FAINT}")
         header = ListItem(Static(text, markup=False), classes="menu-section")
         header.disabled = True  # ListView skips disabled items when navigating
         return header
 
     def _render_entry(self, entry: MenuEntry) -> Table:
-        state = self._states.get(entry.action, entry.state)
+        value, colour = _split_state(self._states.get(entry.action, entry.state))
 
         row = Table.grid(expand=True, padding=(0, 1))
         row.add_column(width=1, no_wrap=True)                   # glyph
-        row.add_column(width=3, no_wrap=True)                   # key badge
+        row.add_column(width=1, no_wrap=True)                   # key
         row.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
         row.add_column(justify="right", no_wrap=True)           # live state
 
         row.add_row(
-            Text(entry.glyph, style=constants.COLOR_ACCENT),
-            Text(entry.key, style=f"bold {constants.COLOR_ACCENT}"),
-            Text(entry.label, style=constants.COLOR_TEXT),
-            Text(state, style=constants.COLOR_SURFACE),
+            Text(entry.glyph, style=constants.INK_FAINT),
+            Text(entry.key, style=f"bold {constants.ACCENT}"),
+            Text(entry.label, style=constants.INK_TEXT),
+            Text(value, style=colour),
         )
         return row
 
     # -- live state --------------------------------------------------------- #
 
-    def set_states(self, states: dict[str, str]) -> None:
+    def set_states(self, states: dict[str, str | tuple[str, str]]) -> None:
         """Update the right-hand value of each entry (cheap, no relayout)."""
         if states == self._states:
             return
@@ -146,3 +146,10 @@ class NavMenu(ListView):
             return None
         entry = getattr(item, "data_entry", None)
         return entry if isinstance(entry, MenuEntry) else None
+
+
+def _split_state(state: str | tuple[str, str]) -> tuple[str, str]:
+    """A state is plain text, or ``(text, colour)`` when it carries a signal."""
+    if isinstance(state, tuple):
+        return state
+    return state, constants.INK_MUTED

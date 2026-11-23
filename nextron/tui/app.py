@@ -124,6 +124,15 @@ class NextronApp(App[int]):
         async def runner() -> None:
             try:
                 report = await self.runtime.connect(mode)
+            except asyncio.CancelledError:
+                # The routing manager has already torn the half-built route
+                # down; just say so.
+                self.notify(
+                    f"{mode.label} cancelled -- nothing was left running.",
+                    title="Cancelled",
+                    severity="warning",
+                )
+                raise
             except NextronError as exc:
                 self.notify(str(exc), severity="error", title=f"{mode.label} failed")
                 return
@@ -178,6 +187,13 @@ class NextronApp(App[int]):
         Only the selected mode's services are touched: VPN Only never starts
         Tor, Tor Only never touches a tunnel.
         """
+        if self._connecting():
+            # A second C while a connection is being built means "stop".
+            # Cancelling the worker is safe: the routing manager catches the
+            # cancellation and tears down whatever was already started.
+            self.notify("Cancelling the connection...", timeout=3)
+            self.workers.cancel_group(self, "routing")
+            return
         if self.runtime.routing.active:
             live = self.runtime.routing.mode
             self.run_action_task(
@@ -186,6 +202,13 @@ class NextronApp(App[int]):
             )
         else:
             self.establish_mode(self.runtime.config.routing_mode)
+
+    def _connecting(self) -> bool:
+        """True while a connect started from the interface is still running."""
+        return any(
+            worker.group == "routing" and not worker.is_finished
+            for worker in self.workers
+        )
 
     # -- quitting ----------------------------------------------------------- #
 

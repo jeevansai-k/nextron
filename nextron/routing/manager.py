@@ -92,56 +92,82 @@ class RoutingManager:
                 f"Establishing {mode.label} ({descriptor.chain})",
                 mode=mode.value,
             )
-            await self.verification.capture_baseline()
-
             try:
-                if mode is RoutingMode.TOR_ONLY:
-                    await self._establish_tor_only()
-                elif mode is RoutingMode.VPN_ONLY:
-                    await self._establish_vpn_only(vpn_profile)
-                elif mode is RoutingMode.TOR_OVER_VPN:
-                    await self._establish_tor_over_vpn(vpn_profile)
-                else:
-                    await self._establish_vpn_over_tor(vpn_profile)
-            except NextronError as exc:
-                state.update(route_status=ServiceStatus.ERROR, last_error=str(exc))
-                self._ctx.bus.emit(
-                    EventType.ROUTE_DOWN,
-                    f"{mode.label} failed: {exc}",
-                    level="error",
-                    mode=mode.value,
+                return await self._establish_locked(mode, vpn_profile, descriptor)
+            except asyncio.CancelledError:
+                # The user cancelled (C again, or quit) part-way through. A
+                # half-built route -- a tor daemon, an openvpn child, an armed
+                # kill switch -- must not outlive the request that started it.
+                state.update(
+                    route_status=ServiceStatus.STOPPING,
+                    last_error="Connection cancelled",
                 )
-                await self._teardown_locked(quiet=True)
-                raise RoutingError(str(exc)) from exc
-
-            self._mode = mode
-            report = await self.verification.verify(mode)
-            self._last_report = report
-
-            strict = self._ctx.config.verification.strict
-            if not report.passed and strict:
-                state.update(route_status=ServiceStatus.ERROR)
-                self._ctx.bus.emit(
-                    EventType.ROUTE_DOWN,
-                    f"{mode.label} rejected: {report.summary}",
-                    level="error",
-                    mode=mode.value,
+                self._ctx.activity(
+                    f"{mode.label} cancelled; cleaning up", level="warning"
                 )
-                failures = "; ".join(check.detail for check in report.failures)
-                await self._teardown_locked(quiet=True)
-                raise RoutingError(f"Verification failed -- {failures}")
+                await asyncio.shield(self._teardown_locked(quiet=True))
+                state.update(last_error=None)
+                raise
 
-            state.update(route_status=ServiceStatus.ACTIVE)
+    async def _establish_locked(
+        self, mode: RoutingMode, vpn_profile: str | None, descriptor
+    ) -> VerificationReport:
+        """The body of :meth:`establish`; the caller holds the lock."""
+        state = self._ctx.state
+        await self.verification.capture_baseline()
+
+        try:
+            if mode is RoutingMode.TOR_ONLY:
+                await self._establish_tor_only()
+            elif mode is RoutingMode.VPN_ONLY:
+                await self._establish_vpn_only(vpn_profile)
+            elif mode is RoutingMode.TOR_OVER_VPN:
+                await self._establish_tor_over_vpn(vpn_profile)
+            else:
+                await self._establish_vpn_over_tor(vpn_profile)
+        except Exception as exc:
+            # Not only NextronError: an OSError from a missing directory or a
+            # bug in a backend must still take the half-built route down.
+            if not isinstance(exc, NextronError):
+                log.exception("Unexpected failure establishing %s", mode.label)
+            state.update(route_status=ServiceStatus.ERROR, last_error=str(exc))
             self._ctx.bus.emit(
-                EventType.ROUTE_UP,
-                f"{mode.label} active -- {report.summary}",
+                EventType.ROUTE_DOWN,
+                f"{mode.label} failed: {exc}",
+                level="error",
                 mode=mode.value,
-                summary=report.summary,
             )
-            await self._ctx.persist(
-                "route.up", f"{mode.label} established", mode=mode.value
+            await self._teardown_locked(quiet=True)
+            raise RoutingError(str(exc)) from exc
+
+        self._mode = mode
+        report = await self.verification.verify(mode)
+        self._last_report = report
+
+        strict = self._ctx.config.verification.strict
+        if not report.passed and strict:
+            state.update(route_status=ServiceStatus.ERROR)
+            self._ctx.bus.emit(
+                EventType.ROUTE_DOWN,
+                f"{mode.label} rejected: {report.summary}",
+                level="error",
+                mode=mode.value,
             )
-            return report
+            failures = "; ".join(check.detail for check in report.failures)
+            await self._teardown_locked(quiet=True)
+            raise RoutingError(f"Verification failed -- {failures}")
+
+        state.update(route_status=ServiceStatus.ACTIVE)
+        self._ctx.bus.emit(
+            EventType.ROUTE_UP,
+            f"{mode.label} active -- {report.summary}",
+            mode=mode.value,
+            summary=report.summary,
+        )
+        await self._ctx.persist(
+            "route.up", f"{mode.label} established", mode=mode.value
+        )
+        return report
 
     # -- per-mode sequences ------------------------------------------------- #
 
@@ -285,14 +311,34 @@ class RoutingManager:
             self._ctx.activity(f"Tearing down {mode.label}")
         self._ctx.state.update(route_status=ServiceStatus.STOPPING)
 
-        if self.transparent.active:
-            await self.transparent.release()
-        if self._dns.running:
-            await self._dns.stop()
-        if self._vpn.connected or self._vpn.current is not None:
-            await self._vpn.disconnect()
-        if self._tor.running:
-            await self._tor.stop()
+        # Every step runs even when an earlier one fails: a DNS restore that
+        # raises must not leave Tor running or the kill switch armed.
+        vpn = self._vpn
+        steps = [
+            ("transparent routing", self.transparent.active, self.transparent.release),
+            ("DNS Shield", self._dns.running, self._dns.stop),
+            (
+                "VPN",
+                # The kill switch counts: a first connect that failed leaves no
+                # current profile, but the default-drop filter is still armed
+                # and the machine is offline until somebody releases it.
+                vpn.connected or vpn.current is not None or vpn.killswitch.active,
+                vpn.disconnect,
+            ),
+            ("Tor", self._tor.running, self._tor.stop),
+        ]
+        for label, needed, step in steps:
+            if not needed:
+                continue
+            try:
+                await step()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                log.exception("Teardown of %s failed", label)
+                self._ctx.activity(
+                    f"Could not stop {label} cleanly: {exc}", level="error"
+                )
         self._vpn.use_socks_proxy(None)
 
         self._mode = None
@@ -329,7 +375,6 @@ class RoutingManager:
             self._ctx.state.update(route_status=ServiceStatus.ERROR)
         elif self._ctx.state.state.route_status is ServiceStatus.ERROR:
             self._ctx.state.update(route_status=ServiceStatus.ACTIVE)
-        self._last_report = report
         return report
 
     async def cleanup_stale_rules(self) -> None:

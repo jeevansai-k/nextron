@@ -87,6 +87,19 @@ class NextronRuntime:
         self._watchdog: asyncio.Task[None] | None = None
         self._started = False
         self._shutting_down = False
+        self._shut_down = False
+
+        # The dashboard reads the switches from state, so seed them from the
+        # saved preferences; otherwise R and F show "off" until Tor starts.
+        settings = self.config_manager.config
+        self.state_manager.update_tor(
+            rotation_enabled=settings.tor.rotation_enabled,
+            rotation_interval=settings.tor.rotation_interval,
+        )
+        self.state_manager.update_vpn(
+            shuffle_enabled=settings.vpn.shuffle_enabled,
+            shuffle_interval=settings.vpn.shuffle_interval,
+        )
 
     # -- properties --------------------------------------------------------- #
 
@@ -112,6 +125,7 @@ class NextronRuntime:
         """Prepare storage and libraries; does not establish any route."""
         if self._started:
             return
+        self._shut_down = False
 
         self.state_manager.update(privileged=process.is_root())
         try:
@@ -141,8 +155,13 @@ class NextronRuntime:
         )
 
     async def shutdown(self) -> None:
-        """Tear everything down in reverse order. Safe to call twice."""
-        if self._shutting_down:
+        """Tear everything down in reverse order. Safe to call twice.
+
+        The TUI calls this on an orderly quit and ``run_app_async`` calls it
+        again in its ``finally``; the second call must be a no-op rather than
+        ending the statistics session twice.
+        """
+        if self._shutting_down or self._shut_down:
             return
         self._shutting_down = True
         log.info("Shutting down")
@@ -166,6 +185,7 @@ class NextronRuntime:
         await self.bus.drain()
         self._started = False
         self._shutting_down = False
+        self._shut_down = True
 
     async def update_blocklists(self, *, progress=None) -> FetchReport:
         """Download every enabled catalogue source and reload the Shield."""
@@ -519,13 +539,34 @@ class NextronRuntime:
         return await self.tor.rotate(reason="manual")
 
     async def toggle_tor_rotation(self) -> bool:
-        """Toggle the Tor scheduler (R in the TUI)."""
-        if not self.mode.uses_tor:
+        """Flip the Tor rotation switch (R in the TUI). Returns the new setting."""
+        return await self.set_tor_rotation(not self.config.tor.rotation_enabled)
+
+    async def set_tor_rotation(self, enabled: bool) -> bool:
+        """Set the Tor rotation switch and apply it to a live session.
+
+        The switch is a preference: while nothing is connected it only records
+        the choice (the scheduler starts with the next route that uses Tor);
+        while Tor is up it starts or stops the scheduler immediately.
+        """
+        self.config.tor.rotation_enabled = enabled
+        self.config_manager.save()
+        self.state_manager.update_tor(rotation_enabled=enabled)
+
+        live = self.routing.active and self.mode.uses_tor and self.tor.running
+        if enabled and live:
+            await self.tor_scheduler.start()
             self.context.activity(
-                f"{self.mode.label} does not use Tor", level="warning"
+                f"Tor rotation on -- every {self.tor_scheduler.interval}s"
             )
-            return False
-        return await self.tor_scheduler.toggle()
+        elif enabled:
+            self.context.activity(
+                "Tor rotation on -- it starts when a mode that uses Tor connects"
+            )
+        else:
+            await self.tor_scheduler.stop()
+            self.context.activity("Tor rotation off")
+        return enabled
 
     def set_tor_interval(self, seconds: int) -> int:
         return self.tor_scheduler.set_interval(seconds)
@@ -533,19 +574,36 @@ class NextronRuntime:
     # -- VPN actions -------------------------------------------------------- #
 
     async def toggle_vpn_shuffle(self) -> bool:
-        """Toggle the VPN shuffle scheduler."""
-        if not self.mode.uses_vpn:
+        """Flip the VPN shuffle switch (F in the TUI). Returns the new setting."""
+        return await self.set_vpn_shuffle(not self.config.vpn.shuffle_enabled)
+
+    async def set_vpn_shuffle(self, enabled: bool) -> bool:
+        """Set the VPN shuffle switch and apply it to a live session."""
+        self.config.vpn.shuffle_enabled = enabled
+        self.config_manager.save()
+        self.state_manager.update_vpn(shuffle_enabled=enabled)
+
+        pool = self.vpn.shuffle.pool_size
+        live = self.routing.active and self.mode.uses_vpn and self.vpn.connected
+        if not enabled:
+            await self.vpn_scheduler.stop()
+            self.context.activity("VPN shuffle off")
+        elif pool < 2:
             self.context.activity(
-                f"{self.mode.label} does not use a VPN", level="warning"
-            )
-            return False
-        if self.vpn.shuffle.pool_size < 2 and not self.vpn_scheduler.running:
-            self.context.activity(
-                "Add at least two profiles to the rotation pool first",
+                "VPN shuffle on, but it needs at least two profiles in the "
+                "rotation pool (P) before it can switch",
                 level="warning",
             )
-            return False
-        return await self.vpn_scheduler.toggle()
+        elif live:
+            await self.vpn_scheduler.start()
+            self.context.activity(
+                f"VPN shuffle on -- every {self.vpn_scheduler.interval}s"
+            )
+        else:
+            self.context.activity(
+                "VPN shuffle on -- it starts when a mode that uses the VPN connects"
+            )
+        return enabled
 
     def set_vpn_interval(self, seconds: int) -> int:
         return self.vpn_scheduler.set_interval(seconds)

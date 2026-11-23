@@ -42,8 +42,3 @@ class TorScheduler(IntervalScheduler):
 
     def _publish_countdown(self) -> None:
         self._ctx.state.update_tor(seconds_to_rotation=self.remaining)
-
-    def _on_state_change(self) -> None:
-        self._ctx.config.tor.rotation_enabled = self.running
-        self._ctx.state.update_tor(rotation_enabled=self.running)
-        self._ctx.save_config()

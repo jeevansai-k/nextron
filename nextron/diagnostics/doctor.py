@@ -50,10 +50,10 @@ class Status(str, Enum):
     @property
     def color(self) -> str:
         return {
-            Status.OK: constants.COLOR_ACCENT,
-            Status.WARN: constants.COLOR_SURFACE,
-            Status.FAIL: constants.COLOR_PRIMARY,
-            Status.INFO: constants.COLOR_SECONDARY,
+            Status.OK: constants.SIGNAL_OK,
+            Status.WARN: constants.SIGNAL_WARN,
+            Status.FAIL: constants.SIGNAL_ERR,
+            Status.INFO: constants.INK_FAINT,
         }[self]
 
 
@@ -154,10 +154,17 @@ class Doctor:
             report.add(
                 section,
                 "Root access",
+                Status.OK,
+                "not root; sudo has cached credentials (sudo -n works)",
+            )
+        elif process.sudo_installed():
+            report.add(
+                section,
+                "Root access",
                 Status.WARN,
-                "not root; privileged actions will use sudo -n",
-                "Run 'sudo -v' first, or start NEXTRON with sudo, so VPN "
-                "tunnels and the kill switch can be created",
+                "not root, and sudo needs a password",
+                "VPN tunnels, the kill switch and transparent routing will be "
+                "refused: " + process.PRIVILEGE_HINT,
             )
         else:
             report.add(
@@ -168,21 +175,6 @@ class Doctor:
                 "VPN tunnels, the kill switch, transparent routing and DNS on "
                 "port 53 all require root",
             )
-
-        for tool in ("nft", "iptables"):
-            if process.which(tool):
-                report.add(section, f"{tool} available", Status.OK, process.which(tool))
-                break
-        else:
-            report.add(
-                section,
-                "Firewall tooling",
-                Status.FAIL,
-                "neither nft nor iptables found",
-                "sudo apt install nftables iptables",
-            )
-
-    # -- binaries ----------------------------------------------------------- #
 
     def _check_binaries(self, report: DoctorReport) -> None:
         section = "Dependencies"

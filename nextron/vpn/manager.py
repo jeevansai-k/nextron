@@ -17,6 +17,7 @@ import logging
 import time
 from datetime import datetime
 
+from nextron.core import process
 from nextron.core.context import EngineContext
 from nextron.core.events import EventType
 from nextron.core.exceptions import (
@@ -73,7 +74,11 @@ class VPNEngine:
     def connected(self) -> bool:
         if self._current is None:
             return False
-        if self._current.protocol is VPNProtocol.WIREGUARD:
+        return self._backend_connected(self._current)
+
+    def _backend_connected(self, profile: VPNProfile) -> bool:
+        """Whether the backend that carries *profile* has a live tunnel."""
+        if profile.protocol is VPNProtocol.WIREGUARD:
             return self._wireguard.connected
         return self._openvpn.connected
 
@@ -178,6 +183,20 @@ class VPNEngine:
             reason=reason,
         )
 
+        if not process.can_escalate():
+            # Checked before anything is touched: without root, openvpn and
+            # wg-quick fail on sudo's password prompt, and retrying that only
+            # makes the user wait longer for the same refusal.
+            message = (
+                f"'{target.name}' cannot be connected: creating a tunnel needs "
+                f"root. To fix it, {process.PRIVILEGE_HINT}."
+            )
+            state.update_vpn(status=ServiceStatus.ERROR, error=message)
+            self._ctx.bus.emit(
+                EventType.VPN_DISCONNECTED, message, level="error"
+            )
+            raise VPNConnectionError(message)
+
         await self._guard_transition(target)
         if self.connected:
             await self._teardown_current()
@@ -197,6 +216,13 @@ class VPNEngine:
                 break
             except VPNConnectionError as exc:
                 last_error = exc
+                if process.needs_password(str(exc)):
+                    # sudo's credential expired mid-session: deterministic too.
+                    last_error = VPNConnectionError(
+                        f"{target.name}: sudo asked for a password. "
+                        f"To fix it, {process.PRIVILEGE_HINT}."
+                    )
+                    break
                 log.warning(
                     "VPN attempt %d/%d for '%s' failed: %s",
                     attempt,
@@ -207,7 +233,10 @@ class VPNEngine:
                 if attempt < attempts:
                     await asyncio.sleep(min(5.0, 1.5 * attempt))
 
-        if not self.connected:
+        # Ask the *target's* backend: when the previous profile used the other
+        # protocol, ``self.connected`` would still be looking at the old,
+        # already torn-down tunnel and report a working switch as a failure.
+        if not self._backend_connected(target):
             state.update_vpn(
                 status=ServiceStatus.ERROR,
                 error=str(last_error) if last_error else "tunnel not established",
@@ -280,12 +309,16 @@ class VPNEngine:
             )
 
     async def _teardown_current(self) -> None:
-        if self._current is None:
-            return
-        if self._current.protocol is VPNProtocol.WIREGUARD:
-            await self._wireguard.disconnect()
-        else:
+        """Stop whichever backend holds a tunnel -- including an orphaned one.
+
+        Looking at both backends rather than only ``self._current`` matters
+        after a half-failed switch, when the live tunnel may belong to a
+        profile that was never recorded as current.
+        """
+        if self._openvpn.running:
             await self._openvpn.disconnect()
+        if self._wireguard.interface:
+            await self._wireguard.disconnect()
 
     async def disconnect(self, *, release_killswitch: bool = True) -> None:
         """Tear the tunnel down and optionally disarm the kill switch."""

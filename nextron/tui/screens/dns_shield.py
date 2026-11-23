@@ -46,7 +46,7 @@ class DNSShieldScreen(NextronScreen):
                 "U downloads every enabled source in the catalogue. "
                 "I opens your file browser to import local .txt/.hosts/.list "
                 "files; O imports a typed path.",
-                style=constants.COLOR_SURFACE,
+                style=constants.INK_MUTED,
             ),
             classes="screen-hint",
         )
@@ -89,7 +89,9 @@ class DNSShieldScreen(NextronScreen):
         table.clear()
         for entry in library.files:
             table.add_row(
-                Text("◉" if entry.enabled else "◌", style=constants.COLOR_ACCENT),
+                Text("◉ on", style=constants.SIGNAL_OK)
+                if entry.enabled
+                else Text("◌ off", style=constants.INK_FAINT),
                 entry.name,
                 entry.format,
                 fmt.thousands(entry.domains) if entry.domains else "--",
@@ -101,37 +103,37 @@ class DNSShieldScreen(NextronScreen):
 
         state = runtime.state.dns
         summary = Text(no_wrap=True)
-        summary.append("Shield ", style=constants.COLOR_SURFACE)
+        summary.append("Shield ", style=constants.INK_MUTED)
         summary.append(
-            f"{state.status.label}", style=f"bold {constants.COLOR_TEXT}"
+            f"{state.status.label}", style=f"bold {constants.INK_TEXT}"
         )
         if state.listen:
-            summary.append(f" on {state.listen}", style=constants.COLOR_TEXT)
-        summary.append("   Upstream ", style=constants.COLOR_SURFACE)
+            summary.append(f" on {state.listen}", style=constants.INK_TEXT)
+        summary.append("   Upstream ", style=constants.INK_MUTED)
         summary.append(
             ("Tor DNSPort " if state.using_tor_dns else "")
             + (", ".join(state.upstream) or "--"),
-            style=constants.COLOR_TEXT,
+            style=constants.INK_TEXT,
         )
-        summary.append("   Blocked ", style=constants.COLOR_SURFACE)
+        summary.append("   Blocked ", style=constants.INK_MUTED)
         summary.append(
             f"{fmt.thousands(state.blocked_domains)} domains",
-            style=f"bold {constants.COLOR_TEXT}",
+            style=f"bold {constants.INK_TEXT}",
         )
         catalogue = SourceCatalogue()
         catalogue.load()
-        summary.append("   Sources ", style=constants.COLOR_SURFACE)
+        summary.append("   Sources ", style=constants.INK_MUTED)
         if catalogue.exists:
             summary.append(
                 f"{len(catalogue.enabled())}/{len(catalogue)} enabled",
-                style=f"bold {constants.COLOR_TEXT}",
+                style=f"bold {constants.INK_TEXT}",
             )
-            summary.append("  U to download", style=constants.COLOR_ACCENT)
+            summary.append("  U to download", style=constants.ACCENT)
         else:
-            summary.append("none", style=f"bold {constants.COLOR_TEXT}")
+            summary.append("none", style=f"bold {constants.INK_TEXT}")
             summary.append(
                 f"  drop lists into {paths.dns_sources_dir()}",
-                style=constants.COLOR_ACCENT,
+                style=constants.ACCENT,
             )
         self.query_one("#dns-summary", Static).update(summary)
 
@@ -142,11 +144,11 @@ class DNSShieldScreen(NextronScreen):
             f"({fmt.percentage(state.block_rate)}) . "
             f"whitelist {fmt.thousands(state.whitelisted_domains)} . "
             f"system DNS {'redirected' if state.resolv_conf_managed else 'unchanged'}",
-            style=constants.COLOR_SURFACE,
+            style=constants.INK_MUTED,
         )
         footer.append(
             f"   Supported: {', '.join(constants.BLOCKLIST_SUFFIXES)}",
-            style=constants.COLOR_SURFACE,
+            style=constants.INK_MUTED,
         )
         self.query_one("#dns-footer", Static).update(footer)
 
@@ -349,7 +351,7 @@ class DNSShieldScreen(NextronScreen):
         widget.update(
             Text(
                 message,
-                style=constants.COLOR_ACCENT if done else constants.COLOR_SURFACE,
+                style=constants.SIGNAL_OK if done else constants.INK_MUTED,
             )
         )
 

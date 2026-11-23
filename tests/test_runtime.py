@@ -74,15 +74,27 @@ async def _true() -> bool:
     return True
 
 
-async def test_toggling_rotation_requires_a_tor_mode(runtime):
+async def test_rotation_switch_is_a_preference_while_disconnected(runtime):
+    """R records the choice; it must not start a scheduler with no Tor to rotate."""
+    from nextron.core.config import ConfigManager
+
     runtime.config.routing_mode = RoutingMode.VPN_ONLY
-    assert await runtime.toggle_tor_rotation() is False
+    before = runtime.config.tor.rotation_enabled
+    assert await runtime.toggle_tor_rotation() is (not before)
+    assert runtime.tor_scheduler.running is False
+    assert runtime.state.tor.rotation_enabled is (not before)
+    assert ConfigManager().load().tor.rotation_enabled is (not before)
+    # ...and flips back.
+    assert await runtime.toggle_tor_rotation() is before
 
 
-async def test_toggling_shuffle_requires_two_profiles(runtime):
+async def test_shuffle_switch_with_one_profile_records_but_does_not_run(runtime):
     runtime.config.routing_mode = RoutingMode.VPN_ONLY
+    runtime.config.vpn.shuffle_enabled = False
     runtime.set_shuffle_pool([runtime.vpn.library.all()[0].id])
-    assert await runtime.toggle_vpn_shuffle() is False
+    assert await runtime.toggle_vpn_shuffle() is True
+    assert runtime.vpn_scheduler.running is False
+    assert runtime.state.vpn.shuffle_enabled is True
 
 
 async def test_shuffle_pool_and_algorithm_round_trip(runtime):

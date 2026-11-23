@@ -229,8 +229,10 @@ class IntervalScheduler(ABC):
         """Push the remaining seconds into the application state."""
 
     def _on_state_change(self) -> None:  # noqa: B027 - deliberately concrete
-        """Mirror running/paused flags into the application state.
+        """Hook called after the scheduler starts or stops.
 
-        Concrete and empty on purpose: a scheduler with no flags to publish
-        should not have to implement this, so it must not be abstract.
+        Deliberately does *not* touch the user's "rotation enabled" preference:
+        the scheduler stops on every disconnect and quit, and writing that into
+        the configuration used to switch the user's R / F setting off behind
+        their back. The preference is owned by :class:`NextronRuntime`.
         """

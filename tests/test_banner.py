@@ -16,7 +16,11 @@ def _plain(renderable, width: int = 80) -> str:
     return capture.get()
 
 
-def test_png_banner_renders_when_the_asset_exists():
+def test_png_banner_renders_when_the_asset_exists(monkeypatch):
+    # PNG rendering is gated on a truecolor terminal; pin one so the result
+    # does not depend on how the test runner was launched (TERM may be unset).
+    monkeypatch.setenv("COLORTERM", "truecolor")
+    monkeypatch.delenv("NEXTRON_FORCE_ASCII", raising=False)
     assert paths.banner_png().is_file()
     result = render_banner(width=48, max_height=12)
     assert result.is_png is True

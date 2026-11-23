@@ -59,20 +59,14 @@ class ServiceStatus(str, Enum):
 
     @property
     def color(self) -> str:
-        """A brand-palette colour for this status (no colours outside the set)."""
+        """The signal colour for this status -- colour always means state."""
         if self is ServiceStatus.ACTIVE:
-            return constants.COLOR_ACCENT
+            return constants.SIGNAL_OK
         if self is ServiceStatus.ERROR:
-            return constants.COLOR_PRIMARY
-        if self in {
-            ServiceStatus.STARTING,
-            ServiceStatus.BOOTSTRAPPING,
-            ServiceStatus.VERIFYING,
-            ServiceStatus.ROTATING,
-            ServiceStatus.STOPPING,
-        }:
-            return constants.COLOR_SURFACE
-        return constants.COLOR_SECONDARY
+            return constants.SIGNAL_ERR
+        if self.is_busy:
+            return constants.SIGNAL_BUSY
+        return constants.INK_FAINT
 
     @property
     def marker(self) -> str:

@@ -55,26 +55,56 @@ Press `Esc`, `Enter` or `Space` to skip the splash immediately.
 
 ## The dashboard
 
-Three columns:
+### The header: one glance
+
+The top line answers "am I protected?" before anything else:
+
+| Word | Colour | Meaning |
+|---|---|---|
+| `EXPOSED` | amber | No route is up; traffic uses the direct connection |
+| `CONNECTING` / `DISCONNECTING` | blue, spinning | A route is being built or torn down |
+| `PROTECTED` | green | The route is up, verified, and covers the whole system |
+| `PROXY ONLY` | amber | Tor is up but only apps pointed at its SOCKS port use it (no root) |
+| `UNVERIFIED` | amber | The route is up but verification did not pass |
+| `FAILED` | red | The last attempt failed; the reason is in the Route panel |
+
+Colour always means state, everywhere: green is carrying traffic, amber needs
+your attention, red failed, blue is working on it. The violet accent marks only
+focus and keys.
+
+### Layout
 
 | Column | Contents |
 |---|---|
-| Left | Menu, Routing panel, Session panel |
-| Middle | Rotation schedulers (both countdowns), Tor Engine, VPN Engine, DNS Shield |
-| Right | Live activity log |
+| Left | Menu, Session panel |
+| Middle (widest) | Route panel, Tor engine and VPN engine side by side, DNS Shield |
+| Right | Schedulers (both countdowns), live activity log |
 
-### Routing panel
+An engine the current mode does not use collapses to one line that says so,
+instead of a column of `--`. When nothing is connected, the Route panel says
+what to press next.
+
+### Route panel
 
 | Row | Meaning |
 |---|---|
-| Mode / Chain | The selected mode and the path it builds |
-| Status | `Idle`, `Starting`, `Verifying`, `Connected`, `Error` |
+| (lead line) | The status word, the mode, and the chain with each hop coloured by its engine |
+| Tor bootstrap | A progress bar while Tor is bootstrapping |
+| Exit | The address and country the internet sees |
 | Verified | The summary of the last verification pass |
-| Reach | `System-wide (TransPort …)` or `SOCKS only — <reason>` |
-| Privileges | `root` or `user (sudo for tunnels)` |
+| Reach | `System-wide (TransPort …)` or `SOCKS only ⟶ 127.0.0.1:<port>` |
+| Privileges | `root` or `user` |
 
 `Reach` is the row to read when Tor "works" but your browser is not using it:
-in SOCKS mode you must point applications at `127.0.0.1:9050` yourself.
+in SOCKS mode you must point applications at the SOCKS port shown there
+yourself. While a connection is being built the panel shows `C cancel`; after a
+failure it shows the error in red with `C try again`, `X run the doctor`.
+
+### Schedulers panel
+
+Each scheduler shows one of three states: `◉ running` with a live countdown,
+`◌ armed` (switched on, starts when a matching route connects) or `◌ off`
+(with the key that turns it on), plus its interval and the keys that step it.
 
 ### Tor Engine panel
 
@@ -104,11 +134,11 @@ redirected.
 | `←` `→` | Move focus between panels |
 | `Enter` | Select / execute |
 | `Space` | Rotate the Tor identity now |
-| `R` | Toggle Tor rotation (the Tor scheduler) |
-| `F` | Toggle VPN shuffle (the VPN scheduler) |
+| `R` | Tor rotation switch. Saved at once; while Tor is up it starts or stops the scheduler, otherwise the scheduler starts with the next Tor connection |
+| `F` | VPN shuffle switch. Same rules as `R`; needs two or more profiles in the rotation pool to actually switch |
 | `[` `]` | Tor rotation interval down / up the preset ladder |
 | `,` `.` | VPN shuffle interval down / up the preset ladder |
-| `C` | Connect / disconnect the selected mode |
+| `C` | Connect / disconnect the selected mode. Pressed while a connection is still being built, it cancels it and removes whatever was already started |
 | `M` | Choose the routing mode (selection only) |
 | `V` | VPN Library — choose the active profile |
 | `P` | Rotation pool |
@@ -226,8 +256,15 @@ step through the preset ladder (wrapping round at 5m), and numbers or lists open
 a prompt. Headings are labels — `↑`/`↓` step over them and `Enter` on one does
 nothing.
 
-Changes are written to `config.toml` immediately and pushed into the live
-engines: changing a rotation interval retimes the running scheduler on the spot.
+Changes are written to `config.toml` immediately. The Notes column starts with
+when each one takes effect:
+
+- **live**: pushed into the running engines at once. The rotation and shuffle
+  switches start or stop their schedulers, the DNS Shield switch starts or stops
+  the Shield inside a live route, and interval changes retime the countdown.
+- **next connect**: ports, transparent routing, exit countries, verification
+  options and the like are read when a route is built.
+- **next launch**: banner and splash options.
 
 ### About (`A`)
 

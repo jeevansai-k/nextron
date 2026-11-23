@@ -59,7 +59,7 @@ class ConfirmScreen(ModalScreen[bool]):
         with Vertical(classes="modal-box") as box:
             box.border_title = self._title
             yield Static(
-                Text(self._question, style=constants.COLOR_TEXT),
+                Text(self._question, style=constants.INK_TEXT),
                 classes="modal-question",
             )
             yield Static(self._hint(), classes="modal-hint")
@@ -70,18 +70,18 @@ class ConfirmScreen(ModalScreen[bool]):
     def _hint(self) -> Text:
         """Spell the keys out: a dialog nobody can dismiss is a trap."""
         hint = Text(no_wrap=True)
-        hint.append("Y", style=f"bold {constants.COLOR_ACCENT}")
-        hint.append(f" {self._confirm_label.lower()}   ", style=constants.COLOR_SURFACE)
-        hint.append("N", style=f"bold {constants.COLOR_ACCENT}")
+        hint.append("Y", style=f"bold {constants.ACCENT}")
+        hint.append(f" {self._confirm_label.lower()}   ", style=constants.INK_MUTED)
+        hint.append("N", style=f"bold {constants.ACCENT}")
         hint.append(
-            f" {self._cancel_label.lower()}   ", style=constants.COLOR_SURFACE
+            f" {self._cancel_label.lower()}   ", style=constants.INK_MUTED
         )
-        hint.append("<- ->", style=f"bold {constants.COLOR_ACCENT}")
-        hint.append(" choose   ", style=constants.COLOR_SURFACE)
-        hint.append("Enter", style=f"bold {constants.COLOR_ACCENT}")
-        hint.append(" select   ", style=constants.COLOR_SURFACE)
-        hint.append("Esc", style=f"bold {constants.COLOR_ACCENT}")
-        hint.append(f" {self._cancel_label.lower()}", style=constants.COLOR_SURFACE)
+        hint.append("<- ->", style=f"bold {constants.ACCENT}")
+        hint.append(" choose   ", style=constants.INK_MUTED)
+        hint.append("Enter", style=f"bold {constants.ACCENT}")
+        hint.append(" select   ", style=constants.INK_MUTED)
+        hint.append("Esc", style=f"bold {constants.ACCENT}")
+        hint.append(f" {self._cancel_label.lower()}", style=constants.INK_MUTED)
         return hint
 
     def on_mount(self) -> None:
@@ -144,7 +144,7 @@ class PromptScreen(ModalScreen[str | None]):
         with Vertical(classes="modal-box") as box:
             box.border_title = self._title
             yield Static(
-                Text(self._question, style=constants.COLOR_TEXT),
+                Text(self._question, style=constants.INK_TEXT),
                 classes="modal-question",
             )
             yield Input(
@@ -182,7 +182,9 @@ class ReportScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-box") as box:
             box.border_title = f"Verification -- {self._report.mode.label}"
-            yield RichLog(id="report-log", markup=False, wrap=True, highlight=False)
+            yield RichLog(
+                id="report-log", markup=False, wrap=True, highlight=False, min_width=20
+            )
             yield Static("", classes="report-summary", id="report-summary")
             with Horizontal(classes="modal-actions"):
                 yield Button("Close", id="close", variant="primary")
@@ -192,23 +194,23 @@ class ReportScreen(ModalScreen[None]):
         for check in self._report.checks:
             line = Text(no_wrap=False)
             style = (
-                constants.COLOR_ACCENT
+                constants.SIGNAL_OK
                 if check.passed and not check.skipped
-                else constants.COLOR_SECONDARY
+                else constants.INK_FAINT
                 if check.skipped
-                else constants.COLOR_SURFACE
+                else constants.SIGNAL_WARN
                 if not check.required
-                else constants.COLOR_PRIMARY
+                else constants.SIGNAL_ERR
             )
             line.append(f"{check.marker} ", style=f"bold {style}")
-            line.append(f"{check.name}: ", style=f"bold {constants.COLOR_TEXT}")
-            line.append(check.detail or check.verdict, style=constants.COLOR_TEXT)
+            line.append(f"{check.name}: ", style=f"bold {constants.INK_TEXT}")
+            line.append(check.detail or check.verdict, style=constants.INK_TEXT)
             log.write(line)
 
         summary = self.query_one("#report-summary", Static)
         verdict = "PASSED" if self._report.passed else "FAILED"
         verdict_color = (
-            constants.COLOR_ACCENT if self._report.passed else constants.COLOR_SURFACE
+            constants.SIGNAL_OK if self._report.passed else constants.SIGNAL_ERR
         )
         summary.update(
             Text(

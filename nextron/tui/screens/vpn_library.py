@@ -25,7 +25,7 @@ __all__ = ["VPNLibraryScreen"]
 class VPNLibraryScreen(NextronScreen):
     """Manage an unlimited number of local VPN profiles."""
 
-    subtitle = "VPN Library"
+    subtitle = "VPN library"
 
     BINDINGS = [
         Binding("i", "import_profile", "Import (browse)"),
@@ -48,7 +48,7 @@ class VPNLibraryScreen(NextronScreen):
                 "files dropped in Sources/VPN Profiles appear here too. A "
                 "profile marked 'needed' under Credentials wants a username "
                 "and password: press U to point it at a file holding them.",
-                style=constants.COLOR_SURFACE,
+                style=constants.INK_MUTED,
             ),
             classes="screen-hint",
         )
@@ -84,10 +84,10 @@ class VPNLibraryScreen(NextronScreen):
         as a failed connection.
         """
         if profile.auth_file:
-            return Text(Path(profile.auth_file).name, style=constants.COLOR_TEXT)
+            return Text(Path(profile.auth_file).name, style=constants.INK_TEXT)
         if profile.requires_credentials:
-            return Text("needed -- press U", style=constants.COLOR_PRIMARY)
-        return Text("--", style=constants.COLOR_SURFACE)
+            return Text("needed ∙ press U", style=constants.SIGNAL_WARN)
+        return Text("--", style=constants.INK_MUTED)
 
     def reload(self) -> None:
         runtime = self.app.runtime
@@ -105,16 +105,16 @@ class VPNLibraryScreen(NextronScreen):
             if profile.id in pool:
                 markers.append("↻")
             table.add_row(
-                Text(" ".join(markers), style=constants.COLOR_ACCENT),
+                Text(" ".join(markers), style=constants.ACCENT),
                 profile.name,
                 profile.protocol.label,
                 fmt.truncate(profile.endpoint, 30),
                 fmt.boolean(profile.tcp),
                 Text(
                     profile.expiry,
-                    style=constants.COLOR_PRIMARY
+                    style=constants.SIGNAL_ERR
                     if profile.expired
-                    else constants.COLOR_TEXT,
+                    else constants.INK_TEXT,
                 ),
                 str(profile.use_count),
                 self._credentials_cell(profile),
@@ -126,7 +126,7 @@ class VPNLibraryScreen(NextronScreen):
             Text(
                 f"{count} profile(s)   ▸ active   ✦ favourite   ↻ in rotation pool"
                 "   Cert = when the embedded certificate expires",
-                style=constants.COLOR_SURFACE,
+                style=constants.INK_MUTED,
             )
         )
 

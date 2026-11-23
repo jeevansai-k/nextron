@@ -45,11 +45,3 @@ class VPNScheduler(IntervalScheduler):
 
     def _publish_countdown(self) -> None:
         self._ctx.state.update_vpn(seconds_to_shuffle=self.remaining)
-
-    def _on_state_change(self) -> None:
-        self._ctx.config.vpn.shuffle_enabled = self.running
-        self._ctx.state.update_vpn(
-            shuffle_enabled=self.running,
-            shuffle_algorithm=self._ctx.config.vpn.shuffle_algorithm,
-        )
-        self._ctx.save_config()

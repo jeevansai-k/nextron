@@ -9,8 +9,10 @@ interactive terminal attached.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import signal
+import sys
 from pathlib import Path
 
 import typer
@@ -20,6 +22,7 @@ from rich.text import Text
 
 from nextron.core import constants
 from nextron.core.config import ConfigManager, RoutingMode
+from nextron.core.events import Event, EventType
 from nextron.core.exceptions import NextronError
 from nextron.core.runtime import NextronRuntime
 from nextron.diagnostics.doctor import Doctor
@@ -68,7 +71,7 @@ def _print_banner() -> None:
     result = render_banner(width=min(72, console.width - 2), max_height=14)
     console.print(result.renderable)
     console.print(
-        Text(constants.TAGLINE, style=f"italic {constants.COLOR_SURFACE}"),
+        Text(constants.TAGLINE, style=f"italic {constants.INK_MUTED}"),
         justify="center",
     )
 
@@ -117,7 +120,7 @@ def _browse(file_filter, title: str) -> list[Path]:
     console.print(
         Text(
             f"Opening {backend}... select one or more files.",
-            style=constants.COLOR_SURFACE,
+            style=constants.INK_MUTED,
         )
     )
     result = asyncio.run(
@@ -127,18 +130,18 @@ def _browse(file_filter, title: str) -> list[Path]:
         _fail(result.error)
         return []
     if result.cancelled or not result.paths:
-        console.print(Text("Nothing selected.", style=constants.COLOR_SURFACE))
+        console.print(Text("Nothing selected.", style=constants.INK_MUTED))
         return []
     return list(result.paths)
 
 
 def _fail(message: str) -> None:
-    console.print(Text(f"✗ {message}", style=constants.COLOR_PRIMARY))
+    console.print(Text(f"✗ {message}", style=constants.SIGNAL_ERR))
     raise typer.Exit(code=1)
 
 
 def _ok(message: str) -> None:
-    console.print(Text(f"✓ {message}", style=constants.COLOR_ACCENT))
+    console.print(Text(f"✓ {message}", style=constants.SIGNAL_OK))
 
 
 # --------------------------------------------------------------------------- #
@@ -206,14 +209,43 @@ def connect(
     raise typer.Exit(code=asyncio.run(_headless(target, profile, rotate, shuffle)))
 
 
+#: Events worth a line in a headless session (the rest are already logged).
+_HEADLESS_EVENTS = {
+    EventType.TOR_ROTATED: constants.SIGNAL_OK,
+    EventType.VPN_CONNECTED: constants.SIGNAL_OK,
+    EventType.VPN_SWITCHED: constants.SIGNAL_OK,
+    EventType.ROUTE_DOWN: constants.SIGNAL_WARN,
+    EventType.VPN_DISCONNECTED: constants.SIGNAL_WARN,
+}
+
+
+def _print_outcome(event: Event) -> None:
+    colour = _HEADLESS_EVENTS.get(event.type)
+    if colour is None or not event.message:
+        return
+    if event.level == "error":
+        colour = constants.SIGNAL_ERR
+    stamp = event.timestamp.strftime("%H:%M:%S")
+    line = Text(f"{stamp} ", style=constants.INK_FAINT)
+    line.append(event.message, style=colour)
+    console.print(line)
+
+
 async def _headless(
     mode: RoutingMode | None,
     profile: str | None,
     rotate: bool | None,
     shuffle: bool | None,
 ) -> int:
+    # A headless session is often piped into a file or `tee`; without line
+    # buffering its progress only appears minutes later, in bursts.
+    with contextlib.suppress(AttributeError, ValueError):
+        sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
     setup_logging("INFO", console=True)
     runtime = NextronRuntime(console_logs=True)
+    # Outcomes the TUI shows in its activity panel arrive as events, not log
+    # lines. Print the ones a headless user needs: new exits, switches, drops.
+    runtime.bus.subscribe(None, _print_outcome)
     if rotate is not None:
         runtime.config.tor.rotation_enabled = rotate
     if shuffle is not None:
@@ -231,7 +263,7 @@ async def _headless(
         await runtime.start()
         report = await runtime.connect(mode, vpn_profile=profile)
     except NextronError as exc:
-        console.print(Text(f"✗ {exc}", style=constants.COLOR_PRIMARY))
+        console.print(Text(f"✗ {exc}", style=constants.SIGNAL_ERR))
         await runtime.shutdown()
         return 1
 
@@ -246,14 +278,14 @@ async def _headless(
     console.print(
         Text(
             "Holding the session open. Press Ctrl+C to tear it down cleanly.",
-            style=constants.COLOR_SURFACE,
+            style=constants.INK_MUTED,
         )
     )
 
     try:
         await stop.wait()
     finally:
-        console.print(Text("Tearing down...", style=constants.COLOR_SURFACE))
+        console.print(Text("Tearing down...", style=constants.INK_MUTED))
         await runtime.shutdown()
     return 0
 
@@ -291,21 +323,21 @@ def doctor(
         raise typer.Exit(code=0 if report.healthy else 1)
 
     for section, findings in report.sections().items():
-        console.print(Text(f"\n{section}", style=f"bold {constants.COLOR_ACCENT}"))
+        console.print(Text(f"\n{section}", style=f"bold {constants.ACCENT}"))
         for finding in findings:
             line = Text("  ")
             line.append(f"{finding.status.marker} ", style=f"bold {finding.status.color}")
-            line.append(f"{finding.name}: ", style=f"bold {constants.COLOR_TEXT}")
-            line.append(finding.detail, style=constants.COLOR_TEXT)
+            line.append(f"{finding.name}: ", style=f"bold {constants.INK_TEXT}")
+            line.append(finding.detail, style=constants.INK_TEXT)
             console.print(line)
             if finding.hint:
                 console.print(
-                    Text(f"      -> {finding.hint}", style=constants.COLOR_SURFACE)
+                    Text(f"      -> {finding.hint}", style=constants.INK_MUTED)
                 )
 
     console.print()
     verdict = "HEALTHY" if report.healthy else "NEEDS ATTENTION"
-    style = constants.COLOR_ACCENT if report.healthy else constants.COLOR_SURFACE
+    style = constants.ACCENT if report.healthy else constants.INK_MUTED
     console.print(Text(f"{verdict} -- {report.summary}", style=f"bold {style}"))
     raise typer.Exit(code=0 if report.healthy else 1)
 
@@ -347,14 +379,14 @@ def ip() -> None:
             console.print(
                 Text(
                     "No Tor SOCKS proxy is listening. Start a Tor mode first.",
-                    style=constants.COLOR_SURFACE,
+                    style=constants.INK_MUTED,
                 )
             )
         elif direct and tor_info and direct.ip == tor_info.ip:
             console.print(
                 Text(
                     "✗ Same address both ways -- traffic is NOT going through Tor.",
-                    style=constants.COLOR_PRIMARY,
+                    style=constants.SIGNAL_ERR,
                 )
             )
         else:
@@ -362,7 +394,7 @@ def ip() -> None:
                 Text(
                     "✓ Tor is working. Any app pointed at the proxy above gets "
                     "the right-hand address; everything else keeps the left one.",
-                    style=constants.COLOR_ACCENT,
+                    style=constants.ACCENT,
                 )
             )
 
@@ -382,11 +414,11 @@ def banner(
     )
     console.print(result.renderable)
     console.print(
-        Text(constants.TAGLINE, style=f"italic {constants.COLOR_SURFACE}"),
+        Text(constants.TAGLINE, style=f"italic {constants.INK_MUTED}"),
         justify="center",
     )
     console.print(
-        Text(f"({result.kind} banner)", style=constants.COLOR_SECONDARY),
+        Text(f"({result.kind} banner)", style=constants.INK_FAINT),
         justify="center",
     )
 
@@ -396,8 +428,8 @@ def about() -> None:
     """Show version, developer and licence information."""
     _print_banner()
     table = Table(box=None, pad_edge=False, show_header=False)
-    table.add_column(style=constants.COLOR_SURFACE)
-    table.add_column(style=constants.COLOR_TEXT)
+    table.add_column(style=constants.INK_MUTED)
+    table.add_column(style=constants.INK_TEXT)
     table.add_row("Version", constants.VERSION)
     table.add_row("Developer", constants.DEVELOPER)
     table.add_row("GitHub", constants.GITHUB_URL)
@@ -424,7 +456,7 @@ def vpn_list() -> None:
         console.print(
             Text(
                 "No VPN profiles imported yet. Add one with: nextron vpn import <file>",
-                style=constants.COLOR_SURFACE,
+                style=constants.INK_MUTED,
             )
         )
         return
@@ -456,7 +488,7 @@ def vpn_list() -> None:
         )
     console.print(table)
     console.print(
-        Text("▸ active   ✦ favourite   ↻ in rotation pool", style=constants.COLOR_SURFACE)
+        Text("▸ active   ✦ favourite   ↻ in rotation pool", style=constants.INK_MUTED)
     )
 
 
@@ -498,7 +530,7 @@ def vpn_import(
             stored = NextronRuntime.adopt_into_sources(path, paths.vpn_sources_dir())
             profile = library.import_file(stored, name=name)
         except NextronError as exc:
-            console.print(Text(f"✗ {path.name}: {exc}", style=constants.COLOR_PRIMARY))
+            console.print(Text(f"✗ {path.name}: {exc}", style=constants.SIGNAL_ERR))
             failed = True
             continue
         imported.append(profile)
@@ -604,7 +636,7 @@ def dns_list() -> None:
             Text(
                 f"No blocklists yet. Drop .txt/.hosts/.list files into "
                 f"{paths.dns_dir()} or use: nextron dns import <file>",
-                style=constants.COLOR_SURFACE,
+                style=constants.INK_MUTED,
             )
         )
         return
@@ -627,7 +659,7 @@ def dns_list() -> None:
     console.print(
         Text(
             f"{total:,} domains blocked, {library.whitelist_count:,} whitelisted",
-            style=constants.COLOR_ACCENT,
+            style=constants.ACCENT,
         )
     )
 
@@ -664,7 +696,7 @@ def dns_import(
             stored = NextronRuntime.adopt_into_sources(path, paths.dns_sources_dir())
             entry = library.import_file(stored)
         except NextronError as exc:
-            console.print(Text(f"✗ {path.name}: {exc}", style=constants.COLOR_PRIMARY))
+            console.print(Text(f"✗ {path.name}: {exc}", style=constants.SIGNAL_ERR))
             failed = True
             continue
         if entry.name not in enabled:
@@ -717,7 +749,7 @@ def dns_sources(
         Text(
             f"{len(catalogue.enabled())} enabled of {len(catalogue)} total"
             + ("" if show_all else "   (--all shows the disabled ones)"),
-            style=constants.COLOR_SURFACE,
+            style=constants.INK_MUTED,
         )
     )
 
@@ -749,17 +781,17 @@ def dns_update(
         Text(
             f"Downloading {len(sources)} blocklist(s) with {concurrency} parallel "
             "requests...\n",
-            style=constants.COLOR_SURFACE,
+            style=constants.INK_MUTED,
         )
     )
 
     def progress(done: int, total: int, outcome) -> None:
         style = (
-            constants.COLOR_ACCENT
+            constants.ACCENT
             if outcome.ok
-            else constants.COLOR_SECONDARY
+            else constants.INK_FAINT
             if outcome.not_applicable
-            else constants.COLOR_SURFACE
+            else constants.INK_MUTED
         )
         console.print(
             Text(f"  [{done:>3}/{total}] {outcome.marker} {outcome.label}", style=style)
@@ -788,21 +820,21 @@ def dns_update(
             Text(
                 f"{len(report.not_applicable)} list(s) hold only cosmetic rules, "
                 "which DNS cannot enforce -- they were skipped, not failed.",
-                style=constants.COLOR_SURFACE,
+                style=constants.INK_MUTED,
             )
         )
     if report.failed:
         console.print(
             Text(
                 f"{len(report.failed)} source(s) unreachable:",
-                style=constants.COLOR_SURFACE,
+                style=constants.INK_MUTED,
             )
         )
         for outcome in report.failed[:10]:
             console.print(
                 Text(
                     f"  ✗ {outcome.source.host}: {outcome.error}",
-                    style=constants.COLOR_SURFACE,
+                    style=constants.INK_MUTED,
                 )
             )
 
@@ -821,10 +853,10 @@ def dns_whitelist(
     if domain is None:
         entries = library.whitelist()
         if not entries:
-            console.print(Text("The whitelist is empty.", style=constants.COLOR_SURFACE))
+            console.print(Text("The whitelist is empty.", style=constants.INK_MUTED))
             return
         for entry in entries:
-            console.print(Text(entry, style=constants.COLOR_TEXT))
+            console.print(Text(entry, style=constants.INK_TEXT))
         return
 
     try:
@@ -849,7 +881,7 @@ def dns_check(domain: str = typer.Argument(..., help="Domain to test.")) -> None
         _ok(f"{domain} is whitelisted (never blocked)")
     elif library.is_blocked(domain):
         console.print(
-            Text(f"✗ {domain} would be BLOCKED", style=f"bold {constants.COLOR_PRIMARY}")
+            Text(f"✗ {domain} would be BLOCKED", style=f"bold {constants.SIGNAL_ERR}")
         )
     else:
         _ok(f"{domain} would be allowed")
@@ -864,8 +896,8 @@ def dns_check(domain: str = typer.Argument(..., help="Domain to test.")) -> None
 def config_path() -> None:
     """Print where NEXTRON keeps its local data."""
     table = Table(box=None, pad_edge=False, show_header=False)
-    table.add_column(style=constants.COLOR_SURFACE)
-    table.add_column(style=constants.COLOR_TEXT)
+    table.add_column(style=constants.INK_MUTED)
+    table.add_column(style=constants.INK_TEXT)
     for label, path in (
         ("config", paths.config_file()),
         ("drop VPN here", paths.vpn_sources_dir()),

@@ -81,12 +81,18 @@ def test_state_change_publishes_one_event(bus):
     assert events[0].data["state"] is manager.state
 
 
-def test_service_status_presentation_uses_the_brand_palette():
-    palette = set(constants.PALETTE.values())
+def test_service_status_presentation_uses_the_interface_tokens():
+    palette = set(constants.INTERFACE_TOKENS.values())
     for status in ServiceStatus:
         assert status.color in palette
         assert status.label
         assert status.marker
+    # Colour means state: success, failure and work-in-progress never share one.
+    assert ServiceStatus.ACTIVE.color == constants.SIGNAL_OK
+    assert ServiceStatus.ERROR.color == constants.SIGNAL_ERR
+    assert ServiceStatus.STARTING.color == constants.SIGNAL_BUSY
+    assert len({ServiceStatus.ACTIVE.color, ServiceStatus.ERROR.color,
+                ServiceStatus.STARTING.color, ServiceStatus.IDLE.color}) == 4
     assert ServiceStatus.ACTIVE.label == "Connected"
     assert ServiceStatus.BOOTSTRAPPING.is_busy is True
     assert ServiceStatus.IDLE.is_busy is False

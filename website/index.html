@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXTRON: Tor, VPN and DNS privacy routing, verified</title>
+  <meta name="description" content="NEXTRON routes your Linux machine through Tor, a VPN, or both, arms an nftables kill switch, blocks ads at DNS, and verifies every connection instead of assuming it worked. Free and open source.">
+  <meta property="og:title" content="NEXTRON: privacy routing you can verify">
+  <meta property="og:description" content="Four routes, one keystroke each. Tor, VPN, Tor over VPN, VPN over Tor, with a kill switch and a DNS Shield, in your terminal.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://jeevansai-k.github.io/nextron/">
+  <meta property="og:image" content="https://jeevansai-k.github.io/nextron/assets/og.png">
+  <meta name="theme-color" content="#0E0C13">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="nav" id="top">
+    <a class="brand" href="#top" aria-label="NEXTRON home">
+      <svg viewBox="0 0 24 24" class="brand-mark" aria-hidden="true"><path d="M12 2 22 12 12 22 2 12Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7 17 12 12 17 7 12Z" fill="currentColor"/></svg>
+      NEXTRON
+    </a>
+    <nav aria-label="Primary">
+      <a href="#routes">Routes</a>
+      <a href="#verify">Verification</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn btn-ghost nav-cta" href="https://github.com/jeevansai-k/nextron">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.34.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      Star on GitHub
+    </a>
+  </header>
+
+  <main id="main">
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="dot dot-ok"></span>v1.0 · open source · Linux</p>
+        <h1>Privacy routing that <em>checks its own work.</em></h1>
+        <p class="lede">
+          NEXTRON sends your traffic through Tor, a VPN, or both. It arms a kill switch first,
+          blocks trackers at DNS, and then <strong>proves</strong> the route works.
+          If a required check fails, it takes the route down instead of telling you you're safe.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#install">Get started free</a>
+          <a class="btn btn-ghost" href="#routes">See the four routes ⟶</a>
+        </div>
+        <ul class="proof" aria-label="Project facts">
+          <li><b>4</b> routing modes</li>
+          <li><b>441</b> automated tests</li>
+          <li><b>0</b> telemetry</li>
+        </ul>
+      </div>
+
+      <div class="hero-visual" aria-label="Animated preview of the NEXTRON status line">
+        <div class="statusbar" id="statusbar">
+          <span class="sb-brand">⬥ NEXTRON</span>
+          <span class="sb-sep"></span>
+          <span class="sb-mode" id="sb-mode">Tor over VPN</span>
+          <span class="sb-chain" id="sb-chain"></span>
+          <span class="sb-sep"></span>
+          <span class="sb-state" id="sb-state" data-state="exposed">◌ EXPOSED</span>
+          <span class="sb-ip" id="sb-ip">direct connection</span>
+        </div>
+        <div class="window">
+          <div class="window-bar"><i></i><i></i><i></i><span>nextron · Tor over VPN</span></div>
+          <img src="assets/screenshots/dashboard.svg" alt="NEXTRON dashboard: PROTECTED, Tor over VPN, 8 of 8 checks passed, Tor and VPN connected, DNS Shield blocking 174,203 domains." loading="eager">
+        </div>
+        <p class="caption">The real interface, in Tor over VPN. Addresses are documentation examples.</p>
+      </div>
+    </section>
+
+    <!-- PROBLEM -->
+    <section class="band" aria-labelledby="problem-h">
+      <div class="band-inner">
+        <h2 id="problem-h" class="band-title">Most privacy tools say <span class="strike">“Connected”</span><br>the moment a process starts.</h2>
+        <div class="band-grid">
+          <p>They keep saying it when the tunnel has quietly died, when DNS leaks around it, and when only your browser was ever covered.</p>
+          <p>NEXTRON reports nothing it hasn't checked. Every status on screen came from a daemon's own output, a socket that answered, or a request that came back.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROUTES -->
+    <section id="routes" class="section" aria-labelledby="routes-h">
+      <div class="section-head">
+        <p class="eyebrow">Routes</p>
+        <h2 id="routes-h">Four routes. One keystroke each.</h2>
+        <p class="sub">Exactly one is live at a time. Switching tears the old chain down in reverse before the new one goes up.</p>
+      </div>
+
+      <div class="routes">
+        <div class="route-tabs" role="tablist" aria-label="Routing modes">
+          <button role="tab" aria-selected="true" data-route="tor">Tor only</button>
+          <button role="tab" aria-selected="false" data-route="vpn">VPN only</button>
+          <button role="tab" aria-selected="false" data-route="torvpn">Tor over VPN</button>
+          <button role="tab" aria-selected="false" data-route="vpntor">VPN over Tor</button>
+        </div>
+        <div class="route-stage" role="tabpanel" aria-live="polite">
+          <div class="chain" id="chain"></div>
+          <div class="route-detail">
+            <h3 id="route-title">Tor only</h3>
+            <p id="route-pitch"></p>
+            <dl class="route-facts">
+              <div><dt>Who sees what</dt><dd id="route-sees"></dd></div>
+              <div><dt>Needs</dt><dd id="route-needs"></dd></div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VERIFY -->
+    <section id="verify" class="section split" aria-labelledby="verify-h">
+      <div class="split-copy">
+        <p class="eyebrow">Verification</p>
+        <h2 id="verify-h">“Connected” is a measurement, not a feeling.</h2>
+        <p class="sub">After every connect, NEXTRON measures your exit before and after, asks Tor about the circuit, and probes for leaks. A failed required check means teardown, not a green light.</p>
+        <ol class="steps">
+          <li><span>01</span>Measure the unprotected exit address</li>
+          <li><span>02</span>Arm the nftables kill switch, before anything moves</li>
+          <li><span>03</span>Bring each hop up and wait for the daemon's own ready line</li>
+          <li><span>04</span>Verify, then go green or tear down</li>
+        </ol>
+      </div>
+      <div class="checklist" aria-label="Example verification report">
+        <div class="checklist-head"><span>Verification · Tor over VPN</span><span class="pill pill-ok">8/8 passed</span></div>
+        <ul id="checks">
+          <li data-ok="1"><b>Exit address changed</b><span>203.0.113.24 ⟶ 198.51.100.71</span></li>
+          <li data-ok="1"><b>Tor confirms the circuit</b><span>check.torproject.org: IsTor</span></li>
+          <li data-ok="1"><b>VPN tunnel</b><span>tun0 up, 10.8.0.6</span></li>
+          <li data-ok="1"><b>SOCKS proxy</b><span>127.0.0.1:9050 accepting</span></li>
+          <li data-ok="1"><b>Routing</b><span>system-wide, TransPort 9040</span></li>
+          <li data-ok="1"><b>DNS</b><span>resolved through the Shield</span></li>
+          <li data-ok="1"><b>DNS leak</b><span>none, upstream is Tor DNSPort</span></li>
+          <li data-ok="1"><b>IPv6 leak</b><span>blocked</span></li>
+        </ul>
+        <button class="btn btn-small" id="replay" type="button">Replay check</button>
+      </div>
+    </section>
+
+    <!-- STATES -->
+    <section class="section" aria-labelledby="states-h">
+      <div class="section-head">
+        <p class="eyebrow">At a glance</p>
+        <h2 id="states-h">One word tells you where you stand.</h2>
+        <p class="sub">Colour always means state. Green is carrying traffic, amber needs you, red failed, blue is working. Nothing decorative ever borrows those colours.</p>
+      </div>
+      <div class="states">
+        <article class="state s-ok"><code>◉ PROTECTED</code><p>Up, verified, and covering the whole machine.</p></article>
+        <article class="state s-warn"><code>◉ PROXY ONLY</code><p>Tor works, but only for apps pointed at its SOCKS port. NEXTRON won't call that protected.</p></article>
+        <article class="state s-warn"><code>◌ EXPOSED</code><p>Nothing connected. You're on the direct line, and the screen says so.</p></article>
+        <article class="state s-busy"><code>⠹ CONNECTING</code><p>Building the route. Press C again to cancel, and whatever had started gets cleaned up.</p></article>
+        <article class="state s-err"><code>✗ FAILED</code><p>Didn't come up. The reason is in plain words, with the key that fixes it.</p></article>
+      </div>
+    </section>
+
+    <!-- FEATURES BENTO -->
+    <section id="features" class="section" aria-labelledby="features-h">
+      <div class="section-head">
+        <p class="eyebrow">Features</p>
+        <h2 id="features-h">Everything between you and the internet, in one console.</h2>
+      </div>
+      <div class="bento">
+        <article class="card card-wide">
+          <h3>Kill switch, armed first</h3>
+          <p>A default-drop nftables ruleset goes up <em>before</em> the tunnel, so a tunnel that fails never had a window to leak. A failed connect releases it again, so you're never stranded offline.</p>
+          <pre class="mini"><code>table inet nextron_killswitch {
+  chain output { policy drop;
+    oifname "lo" accept
+    oifname "tun0" accept
+    ip daddr 203.0.113.24 accept } }</code></pre>
+        </article>
+        <article class="card">
+          <h3>DNS Shield</h3>
+          <p>Its own resolver blocks ad, tracker and malware domains, forwards the rest through Tor, and restores <code>resolv.conf</code> exactly as it was.</p>
+          <p class="metric"><b>174,203</b> domains on three lists, in the demo</p>
+        </article>
+        <article class="card">
+          <h3>Identity rotation</h3>
+          <p>New Tor exit on a timer from 15s to 5m, each one checked to make sure the address really changed. The VPN shuffles across your pool on its own timer.</p>
+        </article>
+        <article class="card">
+          <h3>Honest without root</h3>
+          <p>No sudo? Tor still runs as a SOCKS proxy and the header says <span class="tag tag-warn">PROXY ONLY</span>. If sudo needs a password, it says so in one second, without retrying four times.</p>
+        </article>
+        <article class="card">
+          <h3>Your files are the library</h3>
+          <p>Drop <code>.ovpn</code>, WireGuard and blocklist files in a folder. Delete one and it's gone. No hidden copies.</p>
+        </article>
+        <article class="card card-wide card-shot">
+          <div>
+            <h3>Switches that say when they apply</h3>
+            <p>Every setting is marked <span class="tag tag-ok">live</span>, next connect or next launch. Rotation and shuffle switches survive disconnects and restarts.</p>
+          </div>
+          <img src="assets/screenshots/settings.svg" alt="NEXTRON settings: switches marked live or next connect." loading="lazy">
+        </article>
+      </div>
+    </section>
+
+    <!-- INSTALL -->
+    <section id="install" class="section install" aria-labelledby="install-h">
+      <div class="section-head">
+        <p class="eyebrow">Get started</p>
+        <h2 id="install-h">From clone to first route in a minute.</h2>
+      </div>
+      <div class="install-grid">
+        <ol class="install-steps">
+          <li>
+            <h3>Install</h3>
+            <div class="cmd"><code>git clone https://github.com/jeevansai-k/nextron &amp;&amp; cd nextron &amp;&amp; ./scripts/install-prerequisites.sh</code><button type="button" class="copy" aria-label="Copy install command">Copy</button></div>
+          </li>
+          <li>
+            <h3>Check the machine</h3>
+            <div class="cmd"><code>nextron doctor</code><button type="button" class="copy" aria-label="Copy doctor command">Copy</button></div>
+          </li>
+          <li>
+            <h3>Launch</h3>
+            <div class="cmd"><code>sudo nextron</code><button type="button" class="copy" aria-label="Copy launch command">Copy</button></div>
+            <p class="hint">Then <kbd>M</kbd> pick a route, <kbd>V</kbd> pick a profile, <kbd>C</kbd> connect.</p>
+          </li>
+        </ol>
+        <div class="keys" aria-label="Keyboard map">
+          <h3>The keyboard is the interface</h3>
+          <dl>
+            <div><dt><kbd>C</kbd></dt><dd>connect · disconnect · cancel</dd></div>
+            <div><dt><kbd>M</kbd></dt><dd>choose a route, never connects</dd></div>
+            <div><dt><kbd>Space</kbd></dt><dd>new Tor identity, now</dd></div>
+            <div><dt><kbd>R</kbd> <kbd>F</kbd></dt><dd>rotation and shuffle switches</dd></div>
+            <div><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Tor interval down / up</dd></div>
+            <div><dt><kbd>D</kbd></dt><dd>DNS Shield</dd></div>
+            <div><dt><kbd>X</kbd></dt><dd>doctor</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRICING -->
+    <section id="pricing" class="section" aria-labelledby="pricing-h">
+      <div class="section-head">
+        <p class="eyebrow">Pricing</p>
+        <h2 id="pricing-h">One plan. It's the whole thing.</h2>
+        <p class="sub">NEXTRON is MIT-licensed software you run yourself. There's no account, no server of ours in your path, and nothing to upgrade to.</p>
+      </div>
+      <div class="pricing">
+        <article class="plan">
+          <div class="plan-head">
+            <h3>Community</h3>
+            <p class="price"><span>$0</span> forever</p>
+          </div>
+          <ul>
+            <li>All four routing modes</li>
+            <li>nftables kill switch</li>
+            <li>DNS Shield with your own blocklists</li>
+            <li>Tor rotation and VPN shuffle schedulers</li>
+            <li>Verification after every connect</li>
+            <li>Headless CLI for scripts and servers</li>
+            <li>Every future release</li>
+          </ul>
+          <a class="btn btn-primary btn-block" href="#install">Install NEXTRON</a>
+        </article>
+        <div class="plan-note">
+          <h3>What you bring</h3>
+          <p>NEXTRON ships no VPN service and no blocklists, so nobody else's choices end up on your machine. Use any OpenVPN or WireGuard provider you trust, or skip the VPN and use Tor alone.</p>
+          <h3>What it never does</h3>
+          <p>No telemetry, no update pings, no account. The only network requests it makes are the ones you can see in the activity log.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="section faq" aria-labelledby="faq-h">
+      <div class="section-head">
+        <p class="eyebrow">FAQ</p>
+        <h2 id="faq-h">Straight answers.</h2>
+      </div>
+      <div class="faq-list">
+        <details><summary>Does NEXTRON make me anonymous?</summary><p>Not on its own. Tor protects the transport. A logged-in or fingerprintable browser can still identify you. NEXTRON makes sure the routing is what it says it is. The rest is up to how you browse.</p></details>
+        <details><summary>Do I need root?</summary><p>For VPN tunnels, the kill switch, system-wide Tor routing and DNS on port 53, yes. Without root, Tor still works as a SOCKS proxy and the header reads PROXY ONLY so you're never misled.</p></details>
+        <details><summary>Which VPN providers work?</summary><p>Any that give you an OpenVPN (<code>.ovpn</code>) or WireGuard config. VPN over Tor needs a TCP OpenVPN profile, because Tor can't carry UDP.</p></details>
+        <details><summary>What happens if the tunnel drops?</summary><p>A watchdog re-checks the tunnel and re-runs verification on a schedule. The kill switch keeps traffic from falling back to your direct connection while it reconnects.</p></details>
+        <details><summary>Is DNS Shield an ad blocker?</summary><p>It blocks ad, tracker and malware <em>domains</em>. Same-origin ads and page clutter still need a browser extension. NEXTRON counts the rules a resolver can't enforce, so you know what you're getting.</p></details>
+        <details><summary>Which systems are supported?</summary><p>Linux, developed on the Debian / Ubuntu / Pop!_OS family, with Python 3.11+ and a 24-bit colour terminal.</p></details>
+      </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section class="final" aria-labelledby="final-h">
+      <h2 id="final-h">Stop trusting the green dot.<br><em>Start checking it.</em></h2>
+      <div class="cta-row center">
+        <a class="btn btn-primary" href="#install">Get NEXTRON</a>
+        <a class="btn btn-ghost" href="https://github.com/jeevansai-k/nextron">Read the source</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <a class="brand" href="#top">⬥ NEXTRON</a>
+      <nav aria-label="Footer">
+        <a href="https://github.com/jeevansai-k/nextron">GitHub</a>
+        <a href="https://github.com/jeevansai-k/nextron/blob/main/docs/USAGE.md">Docs</a>
+        <a href="https://github.com/jeevansai-k/nextron/issues">Issues</a>
+        <a href="https://github.com/jeevansai-k/nextron/blob/main/LICENSE">MIT License</a>
+      </nav>
+      <p>Made by <a href="https://github.com/jeevansai-k">Jeevan Sai K</a>.</p>
+    </div>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

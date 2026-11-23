@@ -97,14 +97,16 @@ def test_it_refuses_while_tor_runs_as_the_current_user():
     assert "sudo" in reason
 
 
-def test_it_accepts_a_daemon_under_another_account():
+def test_it_accepts_a_daemon_under_another_account(monkeypatch):
+    monkeypatch.setattr("nextron.core.process.can_escalate", lambda: True)
     usable, reason = TransparentRouter().available(
         daemon_is_ours=False, tor_uid=125
     )
     assert usable is True and reason is None
 
 
-def test_it_refuses_a_daemon_sharing_our_uid():
+def test_it_refuses_a_daemon_sharing_our_uid(monkeypatch):
+    monkeypatch.setattr("nextron.core.process.can_escalate", lambda: True)
     usable, reason = TransparentRouter().available(
         daemon_is_ours=False, tor_uid=os.geteuid()
     )

@@ -18,11 +18,11 @@ from textual.widgets import Footer
 from nextron.core import constants
 from nextron.state.manager import AppState, ServiceStatus
 from nextron.tui.layouts.dashboard import PANELS, Column, panels_in
-from nextron.tui.screens.base import HeaderBar, NextronScreen
-from nextron.tui.widgets import pulse
+from nextron.tui.screens.base import HeaderBar, NextronScreen, socks_only
+from nextron.tui.widgets import pulse, signal
 from nextron.tui.widgets.activity import ActivityLog
 from nextron.tui.widgets.menu import MenuEntry, NavMenu
-from nextron.tui.widgets.panels import CountdownPanel, InfoPanel
+from nextron.tui.widgets.panels import CountdownPanel, InfoPanel, SchedulerLine
 from nextron.tui.widgets.pulse import marker_for, pulse_style
 from nextron.utils import format as fmt
 from nextron.utils import intervals
@@ -30,12 +30,12 @@ from nextron.utils import intervals
 __all__ = ["DashboardScreen"]
 
 MENU_ENTRIES = [
-    MenuEntry("C", "Connect / Disconnect", "toggle_route", "⌁", "Session"),
-    MenuEntry("M", "Routing Mode", "mode_select", "⇄", "Session"),
-    MenuEntry("R", "Tor Rotation", "toggle_rotation", "↻", "Session"),
-    MenuEntry("F", "VPN Shuffle", "toggle_shuffle", "⇆", "Session"),
-    MenuEntry("V", "VPN Library", "vpn_library", "❏", "Libraries"),
-    MenuEntry("P", "Rotation Pool", "profiles", "⇅", "Libraries"),
+    MenuEntry("C", "Connect", "toggle_route", "⌁", "Session"),
+    MenuEntry("M", "Routing mode", "mode_select", "⇄", "Session"),
+    MenuEntry("R", "Tor rotation", "toggle_rotation", "↻", "Session"),
+    MenuEntry("F", "VPN shuffle", "toggle_shuffle", "⇆", "Session"),
+    MenuEntry("V", "VPN library", "vpn_library", "❏", "Libraries"),
+    MenuEntry("P", "Rotation pool", "profiles", "⇅", "Libraries"),
     MenuEntry("D", "DNS Shield", "dns_shield", "✜", "Libraries"),
     MenuEntry("X", "Doctor", "doctor", "✚", "System"),
     MenuEntry("L", "Logs", "logs", "⌸", "System"),
@@ -47,14 +47,20 @@ MENU_ENTRIES = [
 def _reach(state: AppState, transparent, socks_port: int) -> Text:
     """Say plainly whether the whole system is routed, or only SOCKS clients."""
     if not state.routing_mode.uses_tor:
-        return Text("tunnel", style=constants.COLOR_TEXT)
+        return Text("system-wide (tunnel)", style=constants.INK_TEXT)
     if transparent.active:
-        return Text(transparent.label, style=constants.COLOR_TEXT)
+        return Text(transparent.label, style=constants.INK_TEXT)
 
     text = Text(no_wrap=True)
-    text.append("SOCKS only -> ", style=constants.COLOR_SURFACE)
-    text.append(f"127.0.0.1:{socks_port}", style=f"bold {constants.COLOR_ACCENT}")
+    text.append("SOCKS only ", style=f"bold {constants.SIGNAL_WARN}")
+    text.append("⟶ ", style=constants.INK_FAINT)
+    text.append(f"127.0.0.1:{socks_port}", style=f"bold {constants.ACCENT}")
+    text.append("  point apps here", style=constants.INK_FAINT)
     return text
+
+
+def _dash(value: object | None) -> str:
+    return "--" if value in (None, "") else str(value)
 
 
 def _engine_uptime(started_at: datetime | None) -> str:
@@ -98,7 +104,7 @@ class DashboardScreen(NextronScreen):
     def compose(self) -> ComposeResult:
         yield HeaderBar()
         with Horizontal(id="dashboard-body"):
-            with VerticalScroll(id=Column.LEFT.value):
+            with Vertical(id=Column.LEFT.value):
                 yield NavMenu(MENU_ENTRIES, id="nav-menu")
                 yield from self._compose_column(Column.LEFT)
             with VerticalScroll(id=Column.MIDDLE.value):
@@ -110,28 +116,39 @@ class DashboardScreen(NextronScreen):
     def _compose_column(self, column: Column) -> ComposeResult:
         """Build every panel assigned to *column*, in registry order.
 
-        The last panel of a column is marked ``-fills-column`` so it takes up
-        the leftover height: without it the three columns end on three
-        different rows and the borders read as a staircase.
+        Consecutive panels that share a ``group`` are laid out side by side.
         """
-        runtime = self.app.runtime
         specs = panels_in(column)
-        for panel in specs:
-            last = panel is specs[-1]
-            if panel.key == "countdown":
-                yield CountdownPanel(id=panel.id)
-            elif panel.key == "activity":
-                yield ActivityLog(
-                    runtime.bus,
-                    lines=runtime.config.interface.activity_log_lines,
-                    id=panel.id,
-                )
-            else:
-                yield InfoPanel(
-                    panel.title,
-                    panel_id=panel.id,
-                    classes="-fills-column" if last else "",
-                )
+        index = 0
+        while index < len(specs):
+            panel = specs[index]
+            if panel.group is None:
+                yield self._build_panel(panel)
+                index += 1
+                continue
+            members = []
+            while index < len(specs) and specs[index].group == panel.group:
+                members.append(specs[index])
+                index += 1
+            with Horizontal(id=panel.group):
+                for member in members:
+                    yield self._build_panel(member)
+
+    def _build_panel(self, panel):
+        runtime = self.app.runtime
+        if panel.key == "countdown":
+            return CountdownPanel(id=panel.id)
+        if panel.key == "activity":
+            return ActivityLog(
+                runtime.bus,
+                lines=runtime.config.interface.activity_log_lines,
+                id=panel.id,
+            )
+        return InfoPanel(
+            panel.title,
+            panel_id=panel.id,
+            classes="-fills-column" if panel.fills else "",
+        )
 
     # -- lifecycle ---------------------------------------------------------- #
 
@@ -194,9 +211,9 @@ class DashboardScreen(NextronScreen):
             marker_for(status, self._frame) + " ",
             style=f"bold {pulse_style(status, self._frame)}",
         )
-        text.append(status.label, style=f"bold {constants.COLOR_TEXT}")
+        text.append(status.label, style=f"bold {status.color}")
         if extra:
-            text.append(f"  {extra}", style=constants.COLOR_SURFACE)
+            text.append(f"  {extra}", style=constants.INK_MUTED)
         return text
 
     def _render_activity(self, state: AppState) -> None:
@@ -206,60 +223,153 @@ class DashboardScreen(NextronScreen):
         """Show each menu entry's live value on the right of its row."""
         runtime = self.app.runtime
         pool = runtime.vpn.shuffle.pool_size
+        route = state.route_status
+        route_value = {
+            ServiceStatus.ACTIVE: ("connected", constants.SIGNAL_OK),
+            ServiceStatus.ERROR: ("failed", constants.SIGNAL_ERR),
+            ServiceStatus.IDLE: ("idle", constants.INK_FAINT),
+        }.get(route, (route.label.lower(), constants.SIGNAL_BUSY))
+
+        def switch(enabled: bool, interval: int) -> tuple[str, str]:
+            if enabled:
+                return intervals.label(interval), constants.SIGNAL_OK
+            return "off", constants.INK_FAINT
+
+        dns_on = state.dns.status is ServiceStatus.ACTIVE
         self.query_one(NavMenu).set_states(
             {
-                "toggle_route": state.route_status.label,
-                "mode_select": state.routing_mode.label,
-                "toggle_rotation": (
-                    intervals.label(state.tor.rotation_interval)
-                    if state.tor.rotation_enabled
-                    else "off"
+                "toggle_route": route_value,
+                "mode_select": (state.routing_mode.label, constants.INK_MUTED),
+                "toggle_rotation": switch(
+                    state.tor.rotation_enabled, state.tor.rotation_interval
                 ),
-                "toggle_shuffle": (
-                    intervals.label(state.vpn.shuffle_interval)
-                    if state.vpn.shuffle_enabled
-                    else "off"
+                "toggle_shuffle": switch(
+                    state.vpn.shuffle_enabled, state.vpn.shuffle_interval
                 ),
-                "vpn_library": f"{len(runtime.vpn.library)} profiles",
-                "profiles": f"{pool} in pool",
+                "vpn_library": (
+                    f"{len(runtime.vpn.library)} profiles",
+                    constants.INK_MUTED,
+                ),
+                "profiles": (f"{pool} in pool", constants.INK_MUTED),
                 "dns_shield": (
-                    f"{state.dns.blocked_domains:,} blocked"
-                    if state.dns.status is ServiceStatus.ACTIVE
-                    else "disabled"
+                    (f"{state.dns.blocked_domains:,} blocked", constants.SIGNAL_OK)
+                    if dns_on
+                    else ("disabled", constants.INK_FAINT)
                 ),
                 "doctor": "",
                 "logs": "",
                 "settings": "",
-                "about": constants.VERSION,
+                "about": (constants.VERSION, constants.INK_FAINT),
             }
         )
+
+    # -- the route hero ------------------------------------------------------ #
 
     def _render_routing(self, state: AppState) -> None:
         panel = self.query_one("#panel-routing", InfoPanel)
         runtime = self.app.runtime
-        transparent = runtime.routing.transparent.status()
-        rows = [
-            (
-                "Mode",
-                Text(state.routing_mode.label, style=f"bold {constants.COLOR_TEXT}"),
-            ),
-            ("Chain", state.routing_mode.chain),
-            ("Status", self._status_text(state.route_status)),
+        mode = state.routing_mode
+        status = state.route_status
+
+        lead = Text(no_wrap=True, overflow="ellipsis")
+        socks = socks_only(self.app, state)
+        glyph, word, colour = signal.protection(state, socks_only=socks)
+        if status.is_busy:
+            glyph = marker_for(status, self._frame)
+        lead.append(f"{glyph} {word}", style=f"bold {colour}")
+        lead.append("   ")
+        lead.append(mode.label, style=f"bold {constants.INK_TEXT}")
+        lead.append("   ")
+        lead.append_text(signal.chain(mode, state))
+
+        if status is ServiceStatus.IDLE and not state.last_error:
+            # The empty state: say what is going on and what to press.
+            message = lead.copy()
+            message.append("\n\n")
+            message.append(
+                "Not connected. Your traffic is using the direct connection.",
+                style=constants.INK_MUTED,
+            )
+            hint = signal.key_hint(
+                ("C", f"connect {mode.label}"),
+                ("M", "change mode"),
+                ("X", "check this machine"),
+            )
+            panel.set_empty(message, hint=hint)
+            panel.set_state_class()
+            return
+
+        rows: list[tuple[str, str | Text]] = []
+        if status.is_busy and mode.uses_tor and state.tor.status in (
+            ServiceStatus.STARTING,
+            ServiceStatus.BOOTSTRAPPING,
+        ):
+            progress = signal.bar(state.tor.bootstrap_percent)
+            if state.tor.bootstrap_phase:
+                progress.append(
+                    f"  {fmt.truncate(state.tor.bootstrap_phase, 34)}",
+                    style=constants.INK_MUTED,
+                )
+            rows.append(("Tor bootstrap", progress))
+
+        if status is ServiceStatus.ACTIVE:
+            exit_text = Text(
+                _dash(state.public_ip), style=f"bold {constants.INK_TEXT}"
+            )
+            if state.exit_country:
+                exit_text.append(f"  {state.exit_country}", style=constants.INK_MUTED)
+            rows.append(("Exit", exit_text))
+
+        verified = state.verification_summary or (
+            "yes" if state.verification_passed else "not yet"
+        )
+        rows.append(
             (
                 "Verified",
-                state.verification_summary
-                or ("yes" if state.verification_passed else "not yet"),
-            ),
-            ("Reach", _reach(state, transparent, runtime.tor.socks_port)),
-            ("Privileges", "root" if state.privileged else "user (sudo for tunnels)"),
-        ]
-        panel.set_rows(
-            rows,
-            note=state.last_error if state.last_error else None,
+                Text(
+                    verified,
+                    style=(
+                        constants.SIGNAL_WARN
+                        if "warning" in verified
+                        else constants.SIGNAL_OK
+                    )
+                    if state.verification_passed
+                    else constants.INK_MUTED,
+                ),
+            )
         )
+        transparent = runtime.routing.transparent.status()
+        rows.append(("Reach", _reach(state, transparent, runtime.tor.socks_port)))
+        rows.append(
+            (
+                "Privileges",
+                Text("root", style=constants.SIGNAL_OK)
+                if state.privileged
+                else Text(
+                    "user  (VPN and system-wide routing need root)",
+                    style=constants.INK_MUTED,
+                ),
+            )
+        )
+
+        note: Text | None = None
+        if state.last_error:
+            note = Text(state.last_error, style=constants.SIGNAL_ERR)
+            if status in (ServiceStatus.ERROR, ServiceStatus.IDLE):
+                note.append("\n")
+                note.append_text(
+                    signal.key_hint(
+                        ("C", "try again"), ("X", "run the doctor"), ("L", "logs")
+                    )
+                )
+        elif status.is_busy:
+            note = signal.key_hint(("C", "cancel"))
+        panel.set_rows(rows, note=note, lead=lead)
         panel.set_state_class(
-            active=state.route_status is ServiceStatus.ACTIVE,
-            error=state.route_status is ServiceStatus.ERROR,
+            active=status is ServiceStatus.ACTIVE and colour == constants.SIGNAL_OK,
+            error=status is ServiceStatus.ERROR,
+            busy=status.is_busy,
+            warn=status is ServiceStatus.ACTIVE and colour != constants.SIGNAL_OK,
         )
 
     def _render_session(self, state: AppState) -> None:
@@ -267,8 +377,8 @@ class DashboardScreen(NextronScreen):
         panel.set_rows(
             [
                 ("Uptime", fmt.clock_duration(state.uptime_seconds)),
-                ("Public IP", state.public_ip or "--"),
-                ("Exit country", state.exit_country or "--"),
+                ("Public IP", _dash(state.public_ip)),
+                ("Exit country", _dash(state.exit_country)),
                 ("Rotations", fmt.thousands(state.tor.rotations)),
                 ("VPN switches", fmt.thousands(state.vpn.switches)),
                 ("DNS blocked", fmt.thousands(state.dns.queries_blocked)),
@@ -277,37 +387,66 @@ class DashboardScreen(NextronScreen):
 
     def _render_countdowns(self, state: AppState) -> None:
         panel = self.query_one("#panel-countdown", CountdownPanel)
-        panel.set_countdowns(
-            tor_clock=fmt.countdown(state.tor.seconds_to_rotation),
-            tor_interval=intervals.strip(state.tor.rotation_interval),
-            tor_detail="rotating (R)" if state.tor.rotation_enabled else "off (R)",
-            vpn_clock=fmt.countdown(state.vpn.seconds_to_shuffle),
-            vpn_interval=intervals.strip(state.vpn.shuffle_interval),
-            vpn_detail=(
-                f"{state.vpn.shuffle_algorithm.label} (F)"
-                if state.vpn.shuffle_enabled
-                else "off (F)"
+        runtime = self.app.runtime
+        live = runtime.routing.active
+        panel.set_lines(
+            SchedulerLine(
+                "Tor identity",
+                clock=fmt.countdown(state.tor.seconds_to_rotation),
+                interval=intervals.label(state.tor.rotation_interval),
+                detail="R",
+                keys="[ ]",
+                enabled=state.tor.rotation_enabled,
+                running=runtime.tor_scheduler.running,
+                unused=live and not state.routing_mode.uses_tor,
+            ),
+            SchedulerLine(
+                "VPN profile",
+                clock=fmt.countdown(state.vpn.seconds_to_shuffle),
+                interval=intervals.label(state.vpn.shuffle_interval),
+                detail="F",
+                keys=", .",
+                enabled=state.vpn.shuffle_enabled,
+                running=runtime.vpn_scheduler.running,
+                unused=live and not state.routing_mode.uses_vpn,
             ),
         )
+
+    def _unused(
+        self, panel: InfoPanel, state: AppState, engine: str, extra: str = ""
+    ) -> None:
+        """An engine the current mode does not use: one line, not ten dashes."""
+        message = Text(
+            f"Not used in {state.routing_mode.label}.", style=constants.INK_FAINT
+        )
+        if extra:
+            message.append(f"\n{extra}", style=constants.INK_MUTED)
+        hint = signal.key_hint(("M", f"pick a mode with {engine}"))
+        panel.set_empty(message, hint=hint)
+        panel.set_state_class(unused=True)
 
     def _render_tor(self, state: AppState) -> None:
         panel = self.query_one("#panel-tor", InfoPanel)
         tor = state.tor
-        bootstrap = (
-            f"{tor.bootstrap_percent}%"
-            + (f" -- {tor.bootstrap_phase}" if tor.bootstrap_phase else "")
-        )
-        rows = [
+        if not state.routing_mode.uses_tor and tor.status in (
+            ServiceStatus.IDLE,
+            ServiceStatus.DISABLED,
+        ):
+            self._unused(panel, state, "Tor")
+            return
+
+        rows: list[tuple[str, str | Text]] = [
             ("Status", self._status_text(tor.status, tor.version or "")),
-            ("Bootstrap", bootstrap),
-            ("Exit IP", tor.exit_ip or "--"),
-            ("Exit country", tor.exit_country or "--"),
-            ("Circuit", tor.circuit_id or "--"),
+        ]
+        if tor.status in (ServiceStatus.STARTING, ServiceStatus.BOOTSTRAPPING):
+            rows.append(("Bootstrap", signal.bar(tor.bootstrap_percent, width=16)))
+        rows += [
+            ("Exit IP", _dash(tor.exit_ip)),
+            ("Exit country", _dash(tor.exit_country)),
+            ("Circuit", _dash(tor.circuit_id)),
             (
                 "Path",
-                fmt.truncate(" -> ".join(tor.circuit_path), 46)
-                if tor.circuit_path
-                else "--",
+                " ⟶ ".join(tor.circuit_path) if tor.circuit_path else "--",
             ),
             ("SOCKS", f"127.0.0.1:{tor.socks_port}"),
             ("Last rotation", fmt.relative(tor.last_rotation)),
@@ -317,23 +456,41 @@ class DashboardScreen(NextronScreen):
         panel.set_state_class(
             active=tor.status is ServiceStatus.ACTIVE,
             error=tor.status is ServiceStatus.ERROR,
+            busy=tor.status.is_busy,
         )
 
     def _render_vpn(self, state: AppState) -> None:
         panel = self.query_one("#panel-vpn", InfoPanel)
         vpn = state.vpn
-        rows = [
+        if not state.routing_mode.uses_vpn and vpn.status in (
+            ServiceStatus.IDLE,
+            ServiceStatus.DISABLED,
+        ):
+            extra = f"Selected profile: {vpn.profile_name}" if vpn.profile_name else ""
+            self._unused(panel, state, "a VPN", extra)
+            return
+        if vpn.profile_name is None and vpn.status is ServiceStatus.IDLE:
+            panel.set_empty(
+                Text("No VPN profile yet.", style=constants.INK_MUTED),
+                hint=signal.key_hint(("V", "import a .ovpn or WireGuard file")),
+            )
+            panel.set_state_class(unused=True)
+            return
+
+        killswitch = (
+            Text("◉ armed", style=f"bold {constants.SIGNAL_OK}")
+            if vpn.killswitch_active
+            else Text("◌ off", style=constants.INK_FAINT)
+        )
+        rows: list[tuple[str, str | Text]] = [
             ("Status", self._status_text(vpn.status, vpn.protocol or "")),
-            ("Profile", vpn.profile_name or "--"),
-            ("Interface", vpn.interface or "--"),
-            ("Tunnel IP", vpn.tunnel_ip or "--"),
-            ("VPN IP", vpn.public_ip or "--"),
-            ("Country", vpn.country or "--"),
-            ("Endpoint", fmt.truncate(vpn.endpoint, 34)),
-            (
-                "Kill switch",
-                "armed" if vpn.killswitch_active else "off",
-            ),
+            ("Profile", _dash(vpn.profile_name)),
+            ("Interface", _dash(vpn.interface)),
+            ("Tunnel IP", _dash(vpn.tunnel_ip)),
+            ("VPN IP", _dash(vpn.public_ip)),
+            ("Country", _dash(vpn.country)),
+            ("Endpoint", fmt.truncate(vpn.endpoint, 34) if vpn.endpoint else "--"),
+            ("Kill switch", killswitch),
             ("Pool", f"{vpn.pool_size} profile(s)"),
             ("Last switch", fmt.relative(vpn.last_switch)),
         ]
@@ -341,14 +498,35 @@ class DashboardScreen(NextronScreen):
         panel.set_state_class(
             active=vpn.status is ServiceStatus.ACTIVE,
             error=vpn.status is ServiceStatus.ERROR,
+            busy=vpn.status.is_busy,
         )
 
     def _render_dns(self, state: AppState) -> None:
         panel = self.query_one("#panel-dns", InfoPanel)
         dns = state.dns
+        if dns.status in (ServiceStatus.IDLE, ServiceStatus.DISABLED) and not dns.error:
+            runtime = self.app.runtime
+            enabled = runtime.config.dns.enabled
+            message = Text(no_wrap=False)
+            message.append_text(self._status_text(dns.status))
+            message.append(
+                "   starts with the route"
+                if enabled
+                else "   switched off in Settings",
+                style=constants.INK_MUTED,
+            )
+            message.append(
+                f"\n{fmt.thousands(dns.blocked_domains)} domains on "
+                f"{len(dns.active_blocklists)} list(s)",
+                style=constants.INK_FAINT,
+            )
+            panel.set_empty(message, hint=signal.key_hint(("D", "lists and toggle")))
+            panel.set_state_class(unused=not enabled)
+            return
+
         rows = [
             ("Status", self._status_text(dns.status)),
-            ("Listening", dns.listen or "--"),
+            ("Listening", _dash(dns.listen)),
             (
                 "Upstream",
                 ("Tor DNSPort " if dns.using_tor_dns else "")
@@ -369,6 +547,7 @@ class DashboardScreen(NextronScreen):
         panel.set_state_class(
             active=dns.status is ServiceStatus.ACTIVE,
             error=dns.status is ServiceStatus.ERROR,
+            busy=dns.status.is_busy,
         )
 
     # -- panel navigation --------------------------------------------------- #

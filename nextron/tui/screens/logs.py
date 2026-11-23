@@ -23,11 +23,11 @@ _FILTERS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 _STYLES = {
-    "DEBUG": constants.COLOR_SECONDARY,
-    "INFO": constants.COLOR_TEXT,
-    "WARNING": constants.COLOR_SURFACE,
-    "ERROR": constants.COLOR_PRIMARY,
-    "CRITICAL": constants.COLOR_PRIMARY,
+    "DEBUG": constants.INK_FAINT,
+    "INFO": constants.INK_TEXT,
+    "WARNING": constants.SIGNAL_WARN,
+    "ERROR": constants.SIGNAL_ERR,
+    "CRITICAL": constants.SIGNAL_ERR,
 }
 
 
@@ -53,7 +53,12 @@ class LogsScreen(NextronScreen):
         with Vertical(classes="screen-body") as body:
             body.border_title = "Session log"
             yield RichLog(
-                id="logs-view", markup=False, wrap=True, highlight=False, max_lines=4000
+                id="logs-view",
+                markup=False,
+                wrap=True,
+                highlight=False,
+                max_lines=4000,
+                min_width=20,
             )
 
     def on_mount(self) -> None:
@@ -71,12 +76,12 @@ class LogsScreen(NextronScreen):
     def _render_header(self) -> None:
         name, _ = _FILTERS[self._filter]
         text = Text(no_wrap=True)
-        text.append("Filter ", style=constants.COLOR_SURFACE)
-        text.append(name, style=f"bold {constants.COLOR_TEXT}")
-        text.append("   Follow ", style=constants.COLOR_SURFACE)
-        text.append("on" if self._follow else "off", style=f"bold {constants.COLOR_TEXT}")
+        text.append("Filter ", style=constants.INK_MUTED)
+        text.append(name, style=f"bold {constants.INK_TEXT}")
+        text.append("   Follow ", style=constants.INK_MUTED)
+        text.append("on" if self._follow else "off", style=f"bold {constants.INK_TEXT}")
         text.append(
-            f"   File {paths.logs_dir() / 'nextron.log'}", style=constants.COLOR_SURFACE
+            f"   File {paths.logs_dir() / 'nextron.log'}", style=constants.INK_MUTED
         )
         self.query_one("#logs-header", Static).update(text)
 
@@ -85,11 +90,11 @@ class LogsScreen(NextronScreen):
 
     def _line(self, entry: LogRecordEntry) -> Text:
         line = Text(no_wrap=False)
-        line.append(f"{entry.clock} ", style=constants.COLOR_SECONDARY)
-        style = _STYLES.get(entry.level, constants.COLOR_TEXT)
+        line.append(f"{entry.clock} ", style=constants.INK_FAINT)
+        style = _STYLES.get(entry.level, constants.INK_TEXT)
         line.append(f"{entry.level:<8}", style=style)
-        line.append(f"{entry.source:<22} ", style=constants.COLOR_SECONDARY)
-        line.append(entry.message, style=_STYLES.get(entry.level, constants.COLOR_TEXT))
+        line.append(f"{entry.source:<22} ", style=constants.INK_FAINT)
+        line.append(entry.message, style=_STYLES.get(entry.level, constants.INK_TEXT))
         return line
 
     def _repaint(self) -> None:

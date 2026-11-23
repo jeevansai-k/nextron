@@ -14,6 +14,8 @@ import logging
 import os
 import shutil
 import signal
+import subprocess
+import time
 from dataclasses import dataclass
 
 from nextron.core.exceptions import DependencyError, PrivilegeError
@@ -21,8 +23,11 @@ from nextron.core.exceptions import DependencyError, PrivilegeError
 log = logging.getLogger(__name__)
 
 __all__ = [
+    "PRIVILEGE_HINT",
     "CommandResult",
+    "can_escalate",
     "is_root",
+    "needs_password",
     "privileged_prefix",
     "require_binary",
     "run",
@@ -30,6 +35,7 @@ __all__ = [
     "spawn",
     "spawn_privileged",
     "sudo_available",
+    "sudo_installed",
     "terminate",
     "which",
 ]
@@ -80,9 +86,65 @@ def require_binary(binary: str) -> str:
     return found
 
 
-def sudo_available() -> bool:
-    """True when ``sudo`` can be used without an interactive prompt."""
+#: What to tell someone whose action needs root that NEXTRON cannot get.
+PRIVILEGE_HINT = (
+    "run NEXTRON as root (sudo nextron), or run 'sudo -v' in this terminal "
+    "first so sudo has cached credentials"
+)
+
+#: sudo prints this when ``-n`` is given and no credential is cached.
+_SUDO_PASSWORD_MARKERS = ("a password is required", "a terminal is required")
+
+#: ``(checked_at, usable)`` -- probing sudo costs a fork, so remember the answer.
+_sudo_probe: tuple[float, bool] | None = None
+_SUDO_OK_TTL = 60.0
+_SUDO_FAIL_TTL = 5.0
+
+
+def sudo_installed() -> bool:
+    """True when a ``sudo`` binary exists (says nothing about using it)."""
     return which("sudo") is not None
+
+
+def sudo_available() -> bool:
+    """True when ``sudo -n`` really works -- installed *and* credentials cached.
+
+    Merely finding the binary is not enough: without a cached credential every
+    ``sudo -n`` call fails with "a password is required", which used to surface
+    much later as a vague "openvpn exited with code 1" after several retries.
+    """
+    global _sudo_probe
+    if not sudo_installed():
+        return False
+    now = time.monotonic()
+    if _sudo_probe is not None:
+        checked_at, usable = _sudo_probe
+        if now - checked_at < (_SUDO_OK_TTL if usable else _SUDO_FAIL_TTL):
+            return usable
+    try:
+        outcome = subprocess.run(
+            ["sudo", "-n", "true"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=3,
+            check=False,
+        )
+        usable = outcome.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        usable = False
+    _sudo_probe = (now, usable)
+    return usable
+
+
+def can_escalate() -> bool:
+    """True when privileged commands can run without anyone typing a password."""
+    return is_root() or sudo_available()
+
+
+def needs_password(text: str) -> bool:
+    """True when *text* is sudo refusing to run without a password."""
+    lowered = text.lower()
+    return "sudo" in lowered and any(m in lowered for m in _SUDO_PASSWORD_MARKERS)
 
 
 def privileged_prefix() -> tuple[str, ...]:
@@ -93,7 +155,7 @@ def privileged_prefix() -> tuple[str, ...]:
     """
     if is_root():
         return ()
-    if sudo_available():
+    if sudo_installed():
         return ("sudo", "-n")
     raise PrivilegeError(
         "Root privileges are required and 'sudo' is unavailable. "

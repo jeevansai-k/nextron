@@ -39,6 +39,8 @@ _FATAL_MARKERS = (
     "Exiting due to fatal error",
     "Options error",
     "All TAP-Windows adapters",
+    # sudo -n without a cached credential: openvpn never even started.
+    "a password is required",
 )
 
 
@@ -280,11 +282,20 @@ class OpenVPNBackend:
             if logfile is not None:
                 logfile.close()
 
-        if self._process.returncode not in (None, 0) and not self._ready.is_set():
-            self._result.error = self._result.error or (
-                f"openvpn exited with code {self._process.returncode}"
-            )
-            self._failed.set()
+        # EOF on stdout usually arrives *before* the child is reaped, when
+        # returncode is still None. Without waiting here a process that died
+        # in its first second was only noticed when the connect timed out.
+        if not self._ready.is_set():
+            try:
+                code = await asyncio.wait_for(self._process.wait(), timeout=5)
+            except TimeoutError:
+                code = self._process.returncode
+            if code is not None:
+                tail = _meaningful_tail(self.log_tail, 1) if self._log_tail else ""
+                self._result.error = self._result.error or (
+                    f"openvpn exited with code {code}" + (f" ({tail})" if tail else "")
+                )
+                self._failed.set()
 
     async def _read_lines(self, stream, logfile) -> None:
         while True:

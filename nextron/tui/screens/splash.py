@@ -34,7 +34,7 @@ class SplashScreen(Screen[None]):
                 prefer_png=self._prefer_png, max_rows=18, id="splash-banner"
             )
             yield Static(
-                Text(constants.TAGLINE, style=f"italic {constants.COLOR_SURFACE}"),
+                Text(constants.TAGLINE, style=f"italic {constants.INK_MUTED}"),
                 id="splash-tagline",
             )
             yield Static("", id="splash-status")
@@ -45,7 +45,7 @@ class SplashScreen(Screen[None]):
         status.update(
             Text(
                 f"Initialising engines... ({banner.kind} banner)",
-                style=constants.COLOR_ACCENT,
+                style=constants.ACCENT,
             )
         )
         if self._seconds > 0:
@@ -54,7 +54,7 @@ class SplashScreen(Screen[None]):
     def set_status(self, message: str) -> None:
         try:
             self.query_one("#splash-status", Static).update(
-                Text(message, style=constants.COLOR_ACCENT)
+                Text(message, style=constants.ACCENT)
             )
         except Exception:  # pragma: no cover - screen may already be gone
             pass

@@ -30,7 +30,9 @@ class DoctorScreen(NextronScreen):
         yield Static("", id="doctor-summary", classes="screen-hint")
         with Vertical(classes="screen-body") as body:
             body.border_title = "System health"
-            yield RichLog(id="doctor-log", markup=False, wrap=True, highlight=False)
+            yield RichLog(
+                id="doctor-log", markup=False, wrap=True, highlight=False, min_width=20
+            )
 
     def on_mount(self) -> None:
         super().on_mount()
@@ -51,11 +53,11 @@ class DoctorScreen(NextronScreen):
             Text(
                 "Running diagnostics..."
                 + ("" if network else " (offline: no network probes)"),
-                style=constants.COLOR_ACCENT,
+                style=constants.ACCENT,
             )
         )
         self.query_one("#doctor-summary", Static).update(
-            Text("Working...", style=constants.COLOR_SURFACE)
+            Text("Working...", style=constants.INK_MUTED)
         )
         self.run_worker(self._execute(network), exclusive=True)
 
@@ -70,29 +72,29 @@ class DoctorScreen(NextronScreen):
         log = self.query_one("#doctor-log", RichLog)
         log.clear()
         for section, findings in report.sections().items():
-            log.write(Text(f"\n{section}", style=f"bold {constants.COLOR_ACCENT}"))
+            log.write(Text(f"\n{section}", style=f"bold {constants.ACCENT}"))
             for finding in findings:
                 line = Text(no_wrap=False)
                 line.append(
                     f"  {finding.status.marker} ",
                     style=f"bold {finding.status.color}",
                 )
-                line.append(f"{finding.name}: ", style=f"bold {constants.COLOR_TEXT}")
-                line.append(finding.detail, style=constants.COLOR_TEXT)
+                line.append(f"{finding.name}: ", style=f"bold {constants.INK_TEXT}")
+                line.append(finding.detail, style=constants.INK_TEXT)
                 log.write(line)
                 if finding.hint:
                     hint = Text(no_wrap=False)
-                    hint.append("      -> ", style=constants.COLOR_SURFACE)
-                    hint.append(finding.hint, style=constants.COLOR_SURFACE)
+                    hint.append("      -> ", style=constants.INK_MUTED)
+                    hint.append(finding.hint, style=constants.INK_MUTED)
                     log.write(hint)
 
         summary = Text(no_wrap=True)
         verdict_color = (
-            constants.COLOR_ACCENT if report.healthy else constants.COLOR_SURFACE
+            constants.SIGNAL_OK if report.healthy else constants.SIGNAL_WARN
         )
         summary.append(
             "HEALTHY" if report.healthy else "NEEDS ATTENTION",
             style=f"bold {verdict_color}",
         )
-        summary.append(f" -- {report.summary}", style=constants.COLOR_TEXT)
+        summary.append(f" -- {report.summary}", style=constants.INK_TEXT)
         self.query_one("#doctor-summary", Static).update(summary)

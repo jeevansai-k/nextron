@@ -1,3 +1,5 @@
+<div align="center">
+
 ```
                                   )
                                ( /(                )
@@ -7,187 +9,123 @@
                               | \| |(_)) ((_)\ | |_  ((_) ((_) _(_/(
                               | .` |/ -_)\ \ / |  _|| '_|/ _ \| ' \))
                               |_|\_|\___|/_\_\  \__||_|  \___/|_||_|
-
-                        Intelligent Tor Switcher with VPN & Ad Blocking in CLI
 ```
 
-<div align="center">
+### Your traffic, four ways out, and one honest answer to "am I protected?"
 
-**Four routing modes. One keystroke each. Nothing leaves without you knowing.**
+**Tor · VPN · Tor over VPN · VPN over Tor**, a nftables kill switch, an ad-blocking DNS Shield,<br>
+and a verifier that checks every connection instead of assuming it worked. All of it in your terminal.
 
-![Python](https://img.shields.io/badge/python-3.11%2B-4B0082?style=flat-square)
-![Platform](https://img.shields.io/badge/platform-Linux-5D3D94?style=flat-square)
-![Interface](https://img.shields.io/badge/interface-100%25%20terminal-9B59B6?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-418%20passing-4B0082?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-C8A2C8?style=flat-square)
+[**Website**](https://jeevansai-k.github.io/nextron/) ·
+[Quick start](#-sixty-seconds-to-your-first-route) ·
+[The four routes](#-four-routes-one-keystroke-each) ·
+[Docs](docs/USAGE.md)
+
+![Python](https://img.shields.io/badge/python-3.11%2B-B48AD0?style=flat-square&labelColor=14111B)
+![Platform](https://img.shields.io/badge/platform-Linux-B48AD0?style=flat-square&labelColor=14111B)
+![Interface](https://img.shields.io/badge/interface-100%25%20terminal-B48AD0?style=flat-square&labelColor=14111B)
+![Tests](https://img.shields.io/badge/tests-441%20passing-5FCF8C?style=flat-square&labelColor=14111B)
+![License](https://img.shields.io/badge/license-MIT-B48AD0?style=flat-square&labelColor=14111B)
+
+<img src="assets/screenshots/dashboard.svg" alt="The NEXTRON dashboard in Tor over VPN mode: the header reads PROTECTED in green, the route panel shows you, VPN, Tor, internet, with 8 of 8 verification checks passed, Tor and VPN engines connected, and the DNS Shield blocking 174,203 domains." width="100%">
+
+<sub>Tor over VPN, verified 8/8, kill switch armed, DNS Shield on. The addresses are documentation examples.</sub>
 
 </div>
 
 ---
 
-```
-                    ┌──────────────────────────────────────────────┐
-     you  ─────────▶│  NEXTRON                                     │
-                    │                                              │
-                    │    DNS Shield    every lookup, filtered      │
-                    │    Router        one of four chains          │
-                    │    Kill switch   nftables, armed first       │
-                    │    Verifier      proves it, or tears down    │
-                    └───────────────────┬──────────────────────────┘
-                                        │
-                              ╭─────────┴─────────╮
-                        Tor ──┤   or  VPN  or     ├── both, either order
-                              ╰─────────┬─────────╯
-                                        ▼
-                                    internet
-```
+## ⬥ The problem with privacy tools
 
-> The same banner NEXTRON prints on launch. In a terminal that can render
-> images it shows [`assets/banner.png`](assets/banner.png) instead, and falls
-> back to this automatically.
+Most of them say **"Connected"** the moment a process starts. Then they say it
+again when the tunnel has silently died, when DNS is leaking around it, and when
+only your browser was ever covered.
 
----
+NEXTRON is built on one rule: **nothing on screen is assumed.** Every status
+came from a daemon's own output, a socket that answered, or a request that came
+back. After every connect it measures your exit address, compares it with the
+one you started with, probes for DNS and IPv6 leaks, and **tears the route down
+if a required check fails**, rather than let you believe something false.
 
-## Why this exists
+The header line answers the only question that matters, in one word:
 
-Privacy tooling on Linux tends to arrive in one of two shapes. Either a GUI that
-hides what it is doing behind a toggle, or a pile of shell scripts you are
-expected to trust because you wrote them at 2am.
+| | Means |
+|:---:|---|
+| 🟢 **`PROTECTED`** | The route is up, verified, and covers the whole machine |
+| 🟠 **`PROXY ONLY`** | Tor works, but only apps pointed at its SOCKS port use it (no root) |
+| 🟠 **`EXPOSED`** | Nothing is connected; you are on the direct line |
+| 🔵 **`CONNECTING`** | A route is being built; press `C` again to cancel cleanly |
+| 🔴 **`FAILED`** | It did not come up, and the reason is printed in plain words |
 
-NEXTRON is the third shape: a **single keyboard-driven console** that runs the
-real daemons — `tor`, `openvpn`, `wg-quick`, `nftables` — reads their actual
-output, and then **goes and checks**. It does not tell you that you are
-protected. It fetches your exit address, compares it against the one you had
-before, tests for DNS and IPv6 leaks, and if any required check fails it takes
-the route down rather than leave you believing a lie.
-
-> **Nothing is assumed.** Every status on screen came from a daemon's own
-> output, a socket that answered, or a request that returned.
+Colour always means state: green is carrying traffic, amber needs you, red
+failed, blue is working. The violet only marks where your keys go.
 
 ---
 
-## Table of contents
+## ⬥ Four routes, one keystroke each
 
-<table>
-<tr><td valign="top" width="33%">
-
-**Getting there**
-- [Why this exists](#why-this-exists)
-- [Routing modes](#routing-modes)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [First run](#first-run)
-
-</td><td valign="top" width="33%">
-
-**Using it**
-- [The interface](#the-interface)
-- [Keyboard](#keyboard)
-- [The Sources folder](#the-sources-folder)
-- [DNS Shield](#dns-shield)
-- [Command line](#command-line)
-
-</td><td valign="top" width="34%">
-
-**Under it**
-- [Verification](#verification)
-- [Privileges](#privileges-what-needs-root-and-why)
-- [Architecture](#architecture)
-- [Testing](#testing)
-- [What it does not do](#what-this-does-not-do)
-
-</td></tr>
-</table>
-
----
-
-## Routing modes
-
-Four chains. Exactly one is live at a time, and switching tears the old one down
-before it builds the new one.
-
-<table>
-<tr>
-<th align="left">Mode</th><th align="left">Chain</th><th align="left">What it buys you</th>
-</tr>
-<tr>
-<td><b>Tor Only</b></td>
-<td><code>you → tor → internet</code></td>
-<td>Three-hop anonymity. No account, no provider, no bill.</td>
-</tr>
-<tr>
-<td><b>VPN Only</b></td>
-<td><code>you → vpn → internet</code></td>
-<td>Speed and a stable exit. One party sees everything — the one you chose.</td>
-</tr>
-<tr>
-<td><b>Tor over VPN</b></td>
-<td><code>you → vpn → tor → internet</code></td>
-<td>Your ISP sees a VPN, not Tor. The guard node sees the VPN, not you.</td>
-</tr>
-<tr>
-<td><b>VPN over Tor</b></td>
-<td><code>you → tor → vpn → internet</code></td>
-<td>The VPN never learns your address. Needs a <b>TCP</b> OpenVPN profile.</td>
-</tr>
-</table>
-
-Every mode arms the **nftables kill switch before the tunnel goes up**, not
-after. If the tunnel fails to establish, traffic was never able to escape in the
-first place.
-
-<details>
-<summary><b>How a connect actually unfolds</b> — the sequence NEXTRON follows</summary>
-
-<br>
+Exactly one is live at a time. Switching tears the old chain down, in reverse
+order, before the new one goes up.
 
 ```
-  1  measure the unprotected exit address       so there is something to compare against
-  2  arm the kill switch                        nftables, before anything moves
-  3  bring the first hop up                     tor bootstrap, or openvpn / wg-quick
-  4  wait for the daemon's own ready marker     not a sleep, not a guess
-  5  bring the second hop up, if the mode has one
-  6  install transparent routing                when running as root
-  7  VERIFY ─┬ exit address changed?            required
-             ├ Tor confirms the circuit?        required, in Tor modes
-             ├ DNS resolving outside the tunnel?
-             └ IPv6 escaping?
-  8  passed  → dashboard goes live
-     failed  → tear down, release the kill switch, show the report
+  Tor Only        you ⟶ Tor ⟶ internet              three hops, no account, no bill
+  VPN Only        you ⟶ VPN ⟶ internet              speed and a stable exit
+  Tor over VPN    you ⟶ VPN ⟶ Tor ⟶ internet        your ISP sees a VPN, the guard never sees you
+  VPN over Tor    you ⟶ Tor ⟶ VPN ⟶ internet        the VPN never learns your address (TCP OpenVPN)
 ```
 
-</details>
+<img src="assets/screenshots/modes.svg" alt="The routing mode picker: four modes, each with a readiness mark, and a panel listing what this machine has for the highlighted mode and what pressing C will do." width="100%">
+
+The mode picker checks your machine first. Tor installed? Profiles imported? A
+TCP profile for VPN over Tor? Root for the tunnel? Each mode gets a ✓, ! or ✗
+**before** you press `C`, not after it fails.
 
 ---
 
-## Requirements
+## ⬥ What happens when you press `C`
 
-| | |
-|---|---|
-| **OS** | Linux (developed on Debian / Ubuntu / Pop!\_OS derivatives) |
-| **Python** | 3.11 or newer |
-| **Terminal** | 24-bit colour; 100×30 minimum, wider is better |
-| **Daemons** | `tor` · `openvpn` · `wireguard-tools` · `nftables` · `iproute2` |
-| **Root** | Only for tunnels, firewall rules and port 53 — see [Privileges](#privileges-what-needs-root-and-why) |
+```
+  1  measure the unprotected exit address        so there is something to compare against
+  2  arm the nftables kill switch                before anything moves
+  3  bring the first hop up                      tor bootstrap, or openvpn / wg-quick
+  4  wait for the daemon's own ready marker      not a sleep, not a guess
+  5  bring the second hop up, if there is one
+  6  install transparent routing                 when running as root
+  7  VERIFY ─┬ did the exit address change?      required
+             ├ does Tor confirm the circuit?     required in Tor modes
+             ├ is DNS resolving outside?
+             └ is IPv6 escaping?
+  8  passed  → the dashboard goes green
+     failed  → tear down, release the kill switch, show the report (I)
+```
 
-NEXTRON bundles no VPN profile, ships no blocklist, and never phones home. What
-it holds is what you put in [`Sources/`](#the-sources-folder).
+<img src="assets/screenshots/connecting.svg" alt="The dashboard while connecting: the header reads CONNECTING in blue and the route panel shows a Tor bootstrap progress bar at 68 percent." width="100%">
+
+Changed your mind half way? Press `C` again. NEXTRON cancels and removes whatever
+it had already started: the Tor daemon, the OpenVPN child, the firewall rules.
 
 ---
 
-## Installation
-
-### The one-command path
+## ⬥ Sixty seconds to your first route
 
 ```bash
-./scripts/install-prerequisites.sh
+git clone https://github.com/jeevansai-k/nextron && cd nextron
+./scripts/install-prerequisites.sh        # packages, virtualenv, and a `nextron` launcher
+nextron doctor                            # every missing piece, by name, with its fix
 ```
 
-It checks the distribution, installs the missing system packages, creates the
-virtual environment, installs NEXTRON into it, and drops a `nextron` launcher on
-your `PATH`. Run it with `--dry-run` first if you would rather read than trust.
+Drop your own files in, then launch:
 
-### The manual path
+```bash
+cp ~/Downloads/*.ovpn  ~/.config/nextron/Sources/'VPN Profiles'/
+cp ~/Downloads/ads.txt ~/.config/nextron/Sources/'DNS list'/
+sudo nextron
+```
+
+**`M`** pick a route → **`V`** pick a profile → **`C`** connect.
+
+<details>
+<summary><b>Rather install by hand?</b></summary>
 
 ```bash
 sudo apt install tor openvpn wireguard-tools nftables iproute2 python3-venv
@@ -195,127 +133,83 @@ python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
 
-### Confirm the machine is ready
+</details>
 
-```bash
-nextron doctor
-```
+<details>
+<summary><b>Why <code>sudo</code>?</b></summary>
 
-Every missing piece is reported by name, with the command that fixes it.
+Without it NEXTRON still runs: Tor works for any app pointed at its SOCKS proxy,
+and the header says **PROXY ONLY** so you are never misled. With root the whole
+machine is routed, VPN tunnels can be created, and the kill switch can be armed.
+NEXTRON never escalates quietly. If sudo needs a password, the action that needs
+it stops at once and tells you to run `sudo -v` or `sudo nextron`.
 
----
+| Operation | Root? | Because |
+|---|:---:|---|
+| Tor SOCKS proxy | no | a user-space port |
+| OpenVPN / WireGuard tunnels | **yes** | creating a `tun` / `wg` device |
+| nftables kill switch | **yes** | firewall tables |
+| System-wide transparent routing | **yes** | NAT redirect rules |
+| DNS Shield on port 53 | **yes** | privileged port; it falls back to 5353 |
 
-## First run
+Tor itself drops to the `debian-tor` account even when NEXTRON is root, and files
+created during a `sudo` run are handed back to you on the way out.
 
-```bash
-# 1. put your own files where NEXTRON will find them
-cp ~/Downloads/*.ovpn  ~/.config/nextron/Sources/'VPN Profiles'/
-cp ~/Downloads/ads.txt ~/.config/nextron/Sources/'DNS list'/
+</details>
 
-# 2. launch
-sudo nextron
-```
-
-> **Why `sudo`?** Without it NEXTRON still runs, but Tor can only route programs
-> pointed at its SOCKS proxy. With it, the whole machine is routed. The Routing
-> panel tells you which of the two you have, in words, every time.
-
-Then: **`M`** pick a mode → **`V`** pick a profile → **`C`** connect.
-
----
-
-## The interface
-
-```
-╭─ Menu ──────────────────────────────╮  ╭─ Rotation Schedulers ──────────────╮
-│ SESSION                             │  │       TOR IDENTITY    VPN PROFILE  │
-│ C   Connect / Disconnect   Connected│  │          04:12           01:38     │
-│ M   Routing Mode        Tor over VPN│  │       ◂ 5m ▸  [ ]     ◂ 2m ▸  , .  │
-│ R   Tor Rotation                 5m │  │        on (R)          on (F)      │
-│ F   VPN Shuffle                  2m │  ╰────────────────────────────────────╯
-│                                     │
-│ LIBRARIES                           │  ╭─ Tor Engine ───────────────────────╮
-│ V   VPN Library         12 profiles │  │ Status      ◉ Connected            │
-│ P   Rotation Pool         4 in pool │  │ Bootstrap   100%                   │
-│ D   DNS Shield         174k blocked │  │ Exit IP     185.xxx.xxx.xxx        │
-│                                     │  │ Path        guard -> middle -> exit│
-│ SYSTEM                              │  ╰────────────────────────────────────╯
-│ X   Doctor                          │
-│ L   Logs                            │  ╭─ Activity ─────────────────────────╮
-│ S   Settings                        │  │ 22:41:02 Kill switch armed         │
-│ A   About                     1.0.0 │  │ 22:41:09 Tor bootstrapped (100%)   │
-╰─────────────────────────────────────╯  │ 22:41:11 Verified: exit changed    │
-```
-
-Three columns that stay in step at any terminal size. Click an entry or press
-its letter — they do exactly the same thing.
-
-### Reading the status markers
-
-The marker beside a status tells you what is happening without reading the word
-next to it.
-
-| | |
+| | Requirement |
 |---|---|
-| `⠋ ⠙ ⠹ ⠸ …` | **spinning** — coming up, bootstrapping, verifying, rotating |
-| `◉ ◍ ◌` | **breathing** — up and carrying traffic |
-| `◌` | idle, or disabled |
-| `✗` | failed |
-
-Only a service actually in use moves. Motion on screen always means *something
-is happening right now* — and an idle dashboard repaints once a second, exactly
-as it would with no animation at all.
+| **OS** | Linux (Debian / Ubuntu / Pop!\_OS family) |
+| **Python** | 3.11+ |
+| **Terminal** | 24-bit colour, 100×30 minimum |
+| **Daemons** | `tor` · `openvpn` · `wireguard-tools` · `nftables` · `iproute2` |
 
 ---
 
-## Keyboard
+## ⬥ The keyboard is the interface
 
 <table>
-<tr><td valign="top">
+<tr><td valign="top" width="50%">
 
-**Session**
-
-| Key | |
+| Key | Session |
 |---|---|
-| `C` | Connect / disconnect |
-| `M` | Choose the routing mode |
-| `Space` | New Tor identity, now |
-| `R` | Tor rotation on / off |
-| `F` | VPN shuffle on / off |
+| `C` | connect · disconnect · cancel |
+| `M` | choose the route (never connects) |
+| `Space` | new Tor identity, now |
+| `R` | Tor rotation switch |
+| `F` | VPN shuffle switch |
 | `[` `]` | Tor interval − / + |
 | `,` `.` | VPN interval − / + |
 
-</td><td valign="top">
+</td><td valign="top" width="50%">
 
-**Libraries and system**
-
-| Key | |
+| Key | Everything else |
 |---|---|
-| `V` | VPN Library |
-| `P` | Rotation Pool |
+| `V` · `P` | VPN library · rotation pool |
 | `D` | DNS Shield |
-| `X` | Doctor |
-| `L` | Logs |
-| `S` | Settings |
-| `A` · `I` | About · last report |
-| `Esc` · `Q` | Back · quit |
+| `X` | doctor |
+| `L` | logs |
+| `S` | settings |
+| `I` | last verification report |
+| `Esc` · `Q` | back · quit |
 
 </td></tr>
 </table>
 
-**`M` and `V` select; they never connect.** Choosing a mode or a profile changes
-what `C` will do — it does not do it. Connecting stays one deliberate keystroke,
-so nothing tears down a live route while you are browsing a list.
+**`R` and `F` are switches, not buttons.** They remember your choice across
+disconnects and restarts. While the engine is up they start or stop its
+scheduler on the spot; otherwise the scheduler is *armed* and starts with the
+next route that uses it. Intervals step along a ladder instead of asking for a
+number: **15s → 30s → 1m → 1m30s → … → 5m**.
 
-Intervals walk a ladder rather than asking you to type a number:
-**15s → 30s → 1m → 1m30s → … → 5m**.
+<img src="assets/screenshots/settings.svg" alt="The settings screen: booleans drawn as on and off switches, and a notes column saying whether each change applies live, on the next connect, or on the next launch." width="100%">
+
+Every setting says when it takes effect: **live**, **next connect** or
+**next launch**. A switch that does nothing right away still tells you so.
 
 ---
 
-## The Sources folder
-
-Two folders, managed with your own file manager. **They are the library** —
-NEXTRON mirrors them rather than importing from them.
+## ⬥ The Sources folder is the library
 
 ```
 ~/.config/nextron/Sources/
@@ -323,206 +217,120 @@ NEXTRON mirrors them rather than importing from them.
 └── DNS list/         .txt   .hosts  .list
 ```
 
-| You do this | NEXTRON does this |
-|---|---|
-| drop a file in | imports it on the next scan |
-| edit a file already there | re-reads it |
-| **delete a file** | **removes it — and its stored copy** |
-| empty the folder | the library is empty |
+NEXTRON **mirrors** these two folders. Drop a file in and it appears. Edit it and
+it is re-read. Delete it and it is gone, stored copy included. What you see on
+screen is exactly what is in the folder, never a leftover you can't find.
 
-So what you see in the interface is exactly what is in those two folders. There
-is never a copy left behind somewhere you cannot find and delete.
-
-Scanned at startup and every time you open `V` or `D`, so a file dropped in
-while NEXTRON is running appears without a restart. Two deliberate exceptions: a
-profile that is **connected right now** survives until you disconnect rather
-than having its configuration pulled out from under a live tunnel, and lists
-**downloaded with `U`** are NEXTRON's own. Importing from anywhere else (`I`, or
-`nextron vpn import`) copies the file into `Sources/` first, so the folder and
-the library can never disagree.
+NEXTRON ships **no VPN profiles and no blocklists**, and never phones home.
 
 ---
 
-## DNS Shield
+## ⬥ DNS Shield
 
-A DNS resolver of NEXTRON's own, in front of everything. It answers from a
-blocked-domain set, forwards the rest through Tor's DNSPort when Tor is up, and
-leaves `/etc/resolv.conf` exactly as it found it when you stop.
+A resolver of NEXTRON's own sits in front of everything. It answers blocked
+names with nothing, sends the rest through Tor's DNSPort when Tor is up, and
+puts `/etc/resolv.conf` back exactly as it found it when you stop.
 
-NEXTRON ships **no lists**. Drop your own into `Sources/DNS list`, and it works
-out what kind of file you gave it:
+It works out what kind of file you gave it:
 
-| What is in the file | What happens |
+| The file holds | What happens |
 |---|---|
-| domains, `\|\|ads.example.com^` rules, or a hosts file | imported, enabled, converted to blocked domains |
-| one `https://…` per line | treated as a **download catalogue** — press `D` then `U` to fetch what it points at |
+| domains, `\|\|ads.example.com^` rules, or a hosts file | imported, enabled, converted to blocked names |
+| one `https://…` per line | treated as a **download catalogue**: `D` then `U` fetches each list |
 
-That distinction matters: a catalogue imported as a blocklist would block
-precisely nothing, and would sit there looking like it had worked.
-
-<details>
-<summary><b>What conversion can and cannot express</b></summary>
-
-<br>
-
-Filter lists are written for a browser extension that sees whole URLs, request
-types and the originating page. A resolver sees a name and nothing else:
-
-| Rule | Result |
-|---|---|
-| `\|\|ads.example.com^` | blocked |
-| `\|\|ads.example.com^$third-party` | blocked |
-| `@@\|\|allowed.example.com^` | allowed — global exception |
-| `\|\|example.com^$domain=other.tv` | skipped — scoped to one site |
-| `example.com##.banner` | skipped — cosmetic |
-| `\|\|example.com/ads.js` | skipped — path |
-
-Skipped rules are counted and shown per list, so a cosmetic-only list reads as
-*"nothing here for DNS to enforce"* rather than as a failure.
-
-</details>
+Filter-list rules a resolver cannot enforce (cosmetic, path-based, site-scoped)
+are counted and shown per list, so a cosmetic-only list reads as "nothing here
+for DNS" instead of quietly blocking nothing.
 
 ---
 
-## Command line
-
-Everything the interface does, scriptable.
+## ⬥ Also from the command line
 
 ```bash
-nextron                       # the console
-nextron connect tor_only      # headless: hold a mode until Ctrl+C
-nextron doctor                # system health report
-nextron ip                    # public address and country, as seen right now
+nextron                        # the console
+nextron connect tor_only       # headless: hold a route until Ctrl+C, print each new exit
+nextron doctor                 # health report with fixes
+nextron ip                     # public address and country, right now
 
 nextron vpn    list | import | remove | activate | pool
 nextron dns    list | import | sources | update | whitelist | check
 nextron config path | show | reset
 ```
 
----
-
-## Verification
-
-A connection is not "up" because a process started. After every connect:
-
-| Check | Required | What it means |
-|---|---|---|
-| **Exit address changed** | yes | Measured before, measured after, compared |
-| **Tor confirms the circuit** | yes, in Tor modes | Asked over the ControlPort, not inferred |
-| **DNS leak** | warning | Are lookups escaping the tunnel? |
-| **IPv6 leak** | warning | Is v6 traffic bypassing a v4-only tunnel? |
-| **Reach** | informational | System-wide, or SOCKS clients only |
-
-A failed *required* check tears the route down. Press `I` for the full report of
-the last attempt, whether it passed or failed.
+The console and the CLI run the same engine, so `nextron connect tor_only`
+and pressing `C` do exactly the same thing.
 
 ---
 
-## Privileges: what needs root and why
-
-NEXTRON runs unprivileged and tells you what it cannot do. It never quietly
-escalates.
-
-| Operation | Needs root | Because |
-|---|---|---|
-| Tor SOCKS proxy | no | A user-space port |
-| Reading state, libraries, logs | no | All under `~/.config/nextron` |
-| OpenVPN / WireGuard tunnels | **yes** | Creating a `tun` / `wg` device |
-| nftables kill switch | **yes** | Firewall tables |
-| System-wide transparent routing | **yes** | NAT redirect rules |
-| DNS Shield on port 53 | **yes** | Privileged port — falls back to 5353 |
-
-Tor itself is dropped to the `debian-tor` user even when NEXTRON is root, and
-anything created during a `sudo` run is handed back to the invoking user on the
-way out, so the next unprivileged run is not locked out of its own files.
-
----
-
-## Architecture
+## ⬥ Under the hood
 
 ```
 nextron/
-├── core/           config · events · runtime · process · verification
-├── tor/            daemon supervision · ControlPort · circuits · NEWNYM
-├── vpn/            OpenVPN · WireGuard · profiles · shuffle · kill switch
-├── dns/            resolver · blocklists · filter-list conversion · sources
-├── routing/        the four modes · transparent proxy · nftables
-├── scheduler/      Tor identity rotation · VPN profile rotation
-├── state/          one snapshot every screen reads from
-├── storage/        paths · sqlite · the Sources mirror
-├── diagnostics/    doctor · leak probes
-└── tui/            screens · widgets · layout · theme
+├── core/          config · events · runtime · process · verification
+├── tor/           daemon supervision · ControlPort · circuits · NEWNYM
+├── vpn/           OpenVPN · WireGuard · profiles · shuffle · kill switch
+├── dns/           resolver · blocklists · filter conversion · sources
+├── routing/       the four routes · transparent proxy · nftables
+├── scheduler/     Tor identity rotation · VPN profile rotation
+├── state/         one immutable snapshot every screen reads from
+├── diagnostics/   doctor · leak probes
+└── tui/           Textual screens · widgets · the "Signal" theme
 ```
 
-Roughly **15,800 lines** of package code and **5,100** of tests. Every engine is
-async and non-blocking: the interface keeps painting while Tor bootstraps.
-
-Three rules the codebase holds to:
-
-1. **One state object.** Engines publish snapshots; screens render them. No
-   screen reaches into an engine, and no engine knows a screen exists.
-2. **No guessed status.** If it is on screen, a daemon said it, a socket
-   answered it, or a request returned it.
-3. **Teardown is as tested as setup.** Every rule installed has a test that it
-   comes back off — including after a crash.
-
----
-
-## Testing
+- **No protocol is re-implemented.** NEXTRON drives the real `tor`, `openvpn`,
+  `wg-quick` and `nft` and reads what they print.
+- **Engines never touch the interface.** They publish state snapshots; screens
+  render them. The UI could vanish and the engines would not notice.
+- **Teardown is as tested as setup.** Ctrl+C, a crash or an exception releases the kill
+  switch, restores DNS and stops every child process. Rules left by a hard crash
+  are cleared on the next start.
 
 ```bash
-.venv/bin/python -m pytest      # 418 tests, no root and no live tunnels needed
+.venv/bin/python -m pytest              # 441 tests, no root and no live tunnels
 .venv/bin/python -m ruff check nextron tests
 ```
 
-The suite drives the real Textual interface through its test pilot — pressing
-keys, clicking rows, reading what is actually on screen. A few of its more
-pointed members, and the bug each one exists because of:
-
-| Test | Why it is there |
-|---|---|
-| `test_openvpn_output_reaches_the_reader_and_the_log` | `--log-append` sent OpenVPN's stdout to a file, so the ready marker never arrived and *every* tunnel timed out |
-| `test_a_profile_that_wants_a_password_is_refused_before_openvpn_starts` | A bare `auth-user-pass` handed the prompt to systemd and hung for minutes |
-| `test_the_interface_draws_only_one_cell_glyphs` | Ambiguous-width symbols shifted a row and made the panel borders stagger |
-| `test_no_screen_method_is_shadowed_by_a_textual_attribute` | `Widget._animate` silently replaced a method of the same name |
-| `test_vpn_only_never_starts_tor` | Selecting a mode used to connect it on the spot |
-| `test_removing_a_file_removes_the_profile` | Deleting a file from `Sources/` left the profile behind |
+The suite drives the real interface through Textual's pilot, pressing keys and
+reading what is actually on screen. Many tests exist because of a specific bug:
+a kill switch left armed after a failed connect, a rotation switch that turned
+itself off on every quit, a cancelled connect that left a Tor daemon behind.
 
 ---
 
-## What this does not do
+## ⬥ What it does not do
 
-Worth being plain about, because privacy tools attract wishful reading.
+Privacy tools attract wishful reading, so plainly:
 
-- **It is not anonymity by itself.** Tor protects the transport. A logged-in
-  browser, a fingerprintable one, or a document that phones home defeats it.
-- **It does not vet your VPN.** A provider sees your traffic. NEXTRON routes to
-  the one you chose; choosing well is yours.
-- **DNS blocking is not ad blocking.** Names resolve to nothing; same-origin ads
-  and cosmetic clutter still need a browser extension.
-- **A kill switch is not a guarantee.** It is an nftables ruleset. Root can
-  remove it, and so can a crash it cannot catch — which is why NEXTRON clears
-  stale rules on the next start.
+- **It is not anonymity on its own.** Tor protects the transport. A logged-in or
+  fingerprintable browser still gives you away.
+- **It does not vet your VPN.** The provider sees your traffic; choosing one is
+  your call.
+- **DNS blocking is not full ad blocking.** Same-origin ads and page clutter
+  still need a browser extension.
+- **A kill switch is a ruleset, not magic.** Root can remove it. NEXTRON cleans
+  up stale rules on the next start for that reason.
 
 ---
 
-## Documentation
+## ⬥ Documentation
 
 | | |
 |---|---|
-| [`docs/USAGE.md`](docs/USAGE.md) | Every screen, every key |
-| [`docs/ROUTING_MODES.md`](docs/ROUTING_MODES.md) | The four chains, and when each is the right one |
-| [`docs/DNS_SHIELD.md`](docs/DNS_SHIELD.md) | Resolver, blocklists, conversion |
-| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Every setting in `config.toml` |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How the pieces fit |
-| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | When it does not work |
+| [Usage](docs/USAGE.md) | every screen, every key, every status word |
+| [Routing modes](docs/ROUTING_MODES.md) | the four chains, and when each is right |
+| [DNS Shield](docs/DNS_SHIELD.md) | resolver, blocklists, conversion |
+| [Configuration](docs/CONFIGURATION.md) | every setting in `config.toml` |
+| [Architecture](docs/ARCHITECTURE.md) | how the pieces fit |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | when it does not work |
 
 ---
 
-## License
-
-[MIT](LICENSE). Use it, fork it, ship it.
-
 <div align="center">
-<sub>Built for people who would rather see the machinery than be reassured about it.</sub>
+
+**MIT licensed.** Use it, fork it, ship it.
+
+Made by [Jeevan Sai K](https://github.com/jeevansai-k)
+
+<sub>For people who would rather see the machinery than be reassured about it.</sub>
+
 </div>

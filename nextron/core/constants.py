@@ -43,6 +43,52 @@ PALETTE: Final[dict[str, str]] = {
 }
 
 # --------------------------------------------------------------------------- #
+# "Signal" interface tokens
+#
+# The brand colours above stay the identity (banner, wordmark, focus). The
+# interface itself sits on cool, violet-tinted neutrals with ONE accent, and
+# reserves four signal hues strictly for state -- so "connected", "warning"
+# and "failed" can never be confused, which an all-purple palette allowed.
+# --------------------------------------------------------------------------- #
+
+# Neutrals, darkest to lightest. All share one faint violet tint.
+INK_BG: Final[str] = "#0E0C13"
+INK_PANEL: Final[str] = "#14111B"
+INK_RAISED: Final[str] = "#1D1828"
+INK_SELECT: Final[str] = "#2E2142"
+INK_LINE: Final[str] = "#2C2638"
+INK_FAINT: Final[str] = "#6E6780"
+INK_MUTED: Final[str] = "#A39CB2"
+INK_TEXT: Final[str] = "#ECE9F2"
+
+# The single accent: the brand violet, lifted to read as text on dark (6.5:1).
+ACCENT: Final[str] = "#B48AD0"
+ACCENT_DEEP: Final[str] = COLOR_ACCENT
+
+# State only. Never decorative.
+SIGNAL_OK: Final[str] = "#5FCF8C"
+SIGNAL_WARN: Final[str] = "#E3B45A"
+SIGNAL_ERR: Final[str] = "#EF6B73"
+SIGNAL_BUSY: Final[str] = "#7FB3E6"
+
+INTERFACE_TOKENS: Final[dict[str, str]] = {
+    "bg": INK_BG,
+    "panel": INK_PANEL,
+    "raised": INK_RAISED,
+    "select": INK_SELECT,
+    "line": INK_LINE,
+    "faint": INK_FAINT,
+    "muted": INK_MUTED,
+    "text": INK_TEXT,
+    "accent": ACCENT,
+    "accent-deep": ACCENT_DEEP,
+    "ok": SIGNAL_OK,
+    "warn": SIGNAL_WARN,
+    "err": SIGNAL_ERR,
+    "busy": SIGNAL_BUSY,
+}
+
+# --------------------------------------------------------------------------- #
 # Networking defaults
 # --------------------------------------------------------------------------- #
 

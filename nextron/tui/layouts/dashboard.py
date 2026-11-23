@@ -30,6 +30,10 @@ class PanelSpec:
     column: Column
     #: Name of the ``DashboardScreen`` method that redraws this panel.
     renderer: str
+    #: Panels sharing a group sit side by side in one row (by this id).
+    group: str | None = None
+    #: Stretch to the bottom of the column so the columns end level.
+    fills: bool = False
 
     @property
     def id(self) -> str:
@@ -43,13 +47,15 @@ class PanelSpec:
 #: The navigation menu sits above the panels in the left column.
 MENU_COLUMN = Column.LEFT
 
+#: Layout: menu and session on the left; the route hero and the engines take
+#: the wide middle; schedulers and the activity log run down the right.
 PANELS: tuple[PanelSpec, ...] = (
-    PanelSpec("routing", "Routing", Column.LEFT, "_render_routing"),
-    PanelSpec("session", "Session", Column.LEFT, "_render_session"),
-    PanelSpec("countdown", "Rotation Schedulers", Column.MIDDLE, "_render_countdowns"),
-    PanelSpec("tor", "Tor Engine", Column.MIDDLE, "_render_tor"),
-    PanelSpec("vpn", "VPN Engine", Column.MIDDLE, "_render_vpn"),
-    PanelSpec("dns", "DNS Shield", Column.MIDDLE, "_render_dns"),
+    PanelSpec("session", "Session", Column.LEFT, "_render_session", fills=True),
+    PanelSpec("routing", "Route", Column.MIDDLE, "_render_routing"),
+    PanelSpec("tor", "Tor engine", Column.MIDDLE, "_render_tor", group="engine-row"),
+    PanelSpec("vpn", "VPN engine", Column.MIDDLE, "_render_vpn", group="engine-row"),
+    PanelSpec("dns", "DNS Shield", Column.MIDDLE, "_render_dns", fills=True),
+    PanelSpec("countdown", "Schedulers", Column.RIGHT, "_render_countdowns"),
     PanelSpec("activity", "Activity", Column.RIGHT, "_render_activity"),
 )
 

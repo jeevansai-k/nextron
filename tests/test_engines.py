@@ -236,6 +236,11 @@ async def test_a_missing_password_is_not_retried(profiles, context, monkeypatch)
         raise VPNCredentialsRequired("needs a username and password")
 
     monkeypatch.setattr(manager, "_bring_up", counting_bring_up)
+    # Simulate root, so the failure under test is the missing password and not
+    # the privilege pre-flight that runs before any attempt.
+    from nextron.core import process
+
+    monkeypatch.setattr(process, "can_escalate", lambda: True)
 
     with pytest.raises(VPNError):
         await manager.connect(profile.name)

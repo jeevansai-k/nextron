@@ -52,7 +52,10 @@ class CheckResult:
     def marker(self) -> str:
         if self.skipped:
             return "-"
-        return "✓" if self.passed else "✗"
+        if self.passed:
+            return "✓"
+        # A failed optional check is a warning: the mode still came up.
+        return "✗" if self.required else "!"
 
     @property
     def verdict(self) -> str:

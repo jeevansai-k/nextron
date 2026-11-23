@@ -52,20 +52,20 @@ class AboutScreen(NextronScreen):
             ("Tagline", constants.TAGLINE),
         )
         for label, value in rows:
-            details.append(f"{label:<13}: ", style=constants.COLOR_SURFACE)
-            details.append(f"{value}\n", style=constants.COLOR_TEXT)
+            details.append(f"{label:<13}: ", style=constants.INK_MUTED)
+            details.append(f"{value}\n", style=constants.INK_TEXT)
 
-        details.append("\n[G] ", style=f"bold {constants.COLOR_ACCENT}")
-        details.append("Open GitHub in the system browser", style=constants.COLOR_TEXT)
-        details.append("\n[E] ", style=f"bold {constants.COLOR_ACCENT}")
-        details.append("Copy the email address", style=constants.COLOR_TEXT)
-        details.append("\nEsc ", style=f"bold {constants.COLOR_ACCENT}")
-        details.append("Return", style=constants.COLOR_TEXT)
+        details.append("\n[G] ", style=f"bold {constants.ACCENT}")
+        details.append("Open GitHub in the system browser", style=constants.INK_TEXT)
+        details.append("\n[E] ", style=f"bold {constants.ACCENT}")
+        details.append("Copy the email address", style=constants.INK_TEXT)
+        details.append("\nEsc ", style=f"bold {constants.ACCENT}")
+        details.append("Return", style=constants.INK_TEXT)
         self.query_one("#about-details", Static).update(details)
 
         stats = Text()
         stats.append("\nLocal storage (nothing leaves this device)\n",
-                     style=f"bold {constants.COLOR_TEXT}")
+                     style=f"bold {constants.INK_TEXT}")
         for label, path in (
             ("config", paths.config_file()),
             ("profiles", paths.profiles_dir()),
@@ -74,8 +74,8 @@ class AboutScreen(NextronScreen):
             ("logs", paths.logs_dir()),
             ("whitelist", paths.whitelist_file()),
         ):
-            stats.append(f"  {label:<11}: ", style=constants.COLOR_SURFACE)
-            stats.append(f"{path}\n", style=constants.COLOR_TEXT)
+            stats.append(f"  {label:<11}: ", style=constants.INK_MUTED)
+            stats.append(f"{path}\n", style=constants.INK_TEXT)
         self.query_one("#about-paths", Static).update(stats)
 
     # -- actions ------------------------------------------------------------ #

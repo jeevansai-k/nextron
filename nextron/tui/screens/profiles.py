@@ -22,7 +22,7 @@ __all__ = ["RotationPoolScreen"]
 class RotationPoolScreen(NextronScreen):
     """Build the shuffle pool and tune the VPN scheduler."""
 
-    subtitle = "Rotation Pool"
+    subtitle = "Rotation pool"
 
     BINDINGS = [
         Binding("space", "toggle_member", "Add / remove"),
@@ -61,7 +61,9 @@ class RotationPoolScreen(NextronScreen):
         for profile in runtime.vpn.library.all():
             member = profile.id in pool or not pool
             table.add_row(
-                Text("◉" if member else "◌", style=constants.COLOR_ACCENT),
+                Text("◉ in pool", style=constants.SIGNAL_OK)
+                if member
+                else Text("◌", style=constants.INK_FAINT),
                 profile.display,
                 profile.protocol.label,
                 fmt.truncate(profile.endpoint, 28),
@@ -72,23 +74,23 @@ class RotationPoolScreen(NextronScreen):
 
         config = runtime.config.vpn
         summary = Text(no_wrap=True)
-        summary.append("Algorithm ", style=constants.COLOR_SURFACE)
+        summary.append("Algorithm ", style=constants.INK_MUTED)
         summary.append(
-            f"{config.shuffle_algorithm.label}", style=f"bold {constants.COLOR_TEXT}"
+            f"{config.shuffle_algorithm.label}", style=f"bold {constants.INK_TEXT}"
         )
-        summary.append("   Interval ", style=constants.COLOR_SURFACE)
+        summary.append("   Interval ", style=constants.INK_MUTED)
         summary.append(
             intervals.strip(config.shuffle_interval),
-            style=f"bold {constants.COLOR_TEXT}",
+            style=f"bold {constants.INK_TEXT}",
         )
-        summary.append("   Scheduler ", style=constants.COLOR_SURFACE)
+        summary.append("   Scheduler ", style=constants.INK_MUTED)
         summary.append(
             "running" if runtime.vpn_scheduler.running else "stopped",
-            style=f"bold {constants.COLOR_TEXT}",
+            style=f"bold {constants.INK_TEXT}",
         )
         summary.append(
             f"   [ ] steps:  {intervals.ladder(config.shuffle_interval)}",
-            style=constants.COLOR_SURFACE,
+            style=constants.INK_MUTED,
         )
         self.query_one("#pool-summary", Static).update(summary)
 
@@ -98,11 +100,11 @@ class RotationPoolScreen(NextronScreen):
         note.append(
             f"{shuffle.pool_size} profile(s) in the pool -- an empty selection "
             "means every profile.   ",
-            style=constants.COLOR_SURFACE,
+            style=constants.INK_MUTED,
         )
         if upcoming is not None:
-            note.append("Next: ", style=constants.COLOR_SURFACE)
-            note.append(upcoming.name, style=f"bold {constants.COLOR_ACCENT}")
+            note.append("Next: ", style=constants.INK_MUTED)
+            note.append(upcoming.name, style=f"bold {constants.ACCENT}")
         self.query_one("#pool-next", Static).update(note)
 
     def _selected(self) -> VPNProfile | None:

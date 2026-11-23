@@ -104,8 +104,8 @@ class TransparentRouter:
         """``(usable, reason_if_not)`` for the current system."""
         if not process.which("nft"):
             return False, "nftables is not installed"
-        if not process.is_root() and not process.sudo_available():
-            return False, "root privileges unavailable"
+        if not process.can_escalate():
+            return False, "needs root -- " + process.PRIVILEGE_HINT
 
         if tor_uid is None:
             tor_uid, username = tor_daemon_uid()

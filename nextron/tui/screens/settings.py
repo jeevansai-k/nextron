@@ -16,6 +16,7 @@ from nextron.core.config import ShuffleAlgorithm
 from nextron.core.exceptions import NextronError
 from nextron.tui.screens.base import NextronScreen
 from nextron.tui.screens.modals import PromptScreen
+from nextron.tui.widgets import signal
 from nextron.utils import intervals
 
 __all__ = ["SettingsScreen"]
@@ -33,6 +34,36 @@ class Setting:
     minimum: int | None = None
     maximum: int | None = None
     choices: tuple[Any, ...] = ()
+
+
+#: When a change takes effect. Shown beside every setting, so a toggle that
+#: waits for the next connection never looks like a switch that did nothing.
+LIVE = {
+    "tor.rotation_enabled",
+    "tor.rotation_interval",
+    "vpn.shuffle_enabled",
+    "vpn.shuffle_interval",
+    "vpn.shuffle_algorithm",
+    "vpn.killswitch_enabled",
+    "dns.enabled",
+    "interface.confirm_quit",
+    "log_level",
+}
+NEXT_LAUNCH = {
+    "interface.show_png_banner",
+    "interface.banner_width",
+    "interface.splash_seconds",
+    "interface.activity_log_lines",
+}
+
+
+def applies(path: str) -> str:
+    """``"live"``, ``"next launch"`` or ``"next connect"``."""
+    if path in LIVE:
+        return "live"
+    if path in NEXT_LAUNCH:
+        return "next launch"
+    return "next connect"
 
 
 SETTINGS: tuple[Setting, ...] = (
@@ -155,10 +186,10 @@ class SettingsScreen(NextronScreen):
     def compose_body(self) -> ComposeResult:
         yield Static(
             Text(
-                "Enter edits the highlighted setting: switches toggle, choices "
-                "cycle, intervals step through 15s / 30s / 1m ... 5m. Changes are "
-                "written to config.toml immediately.",
-                style=constants.COLOR_SURFACE,
+                "Enter or Space changes the highlighted setting: switches flip, "
+                "choices cycle, intervals step 15s, 30s, 1m ... 5m. Every change "
+                "is saved at once; the badge says when it takes effect.",
+                style=constants.INK_MUTED,
             ),
             classes="screen-hint",
         )
@@ -213,7 +244,7 @@ class SettingsScreen(NextronScreen):
         for index, row in enumerate(ROWS):
             if isinstance(row, SectionHeader):
                 table.add_row(
-                    Text(row.name.upper(), style=f"bold {constants.COLOR_SECONDARY}"),
+                    Text(row.name, style=f"bold {constants.ACCENT}"),
                     Text(""),
                     Text(""),
                     key=str(index),
@@ -222,12 +253,9 @@ class SettingsScreen(NextronScreen):
             table.add_row(
                 # Indented, so the eye reads each block as belonging to the
                 # heading above it rather than as one long list.
-                Text(f"  {row.label}", style=constants.COLOR_TEXT),
-                Text(
-                    self._format_value(self._get(row), row.kind),
-                    style=constants.COLOR_ACCENT,
-                ),
-                row.hint,
+                Text(f"  {row.label}", style=constants.INK_TEXT),
+                self._value_cell(row),
+                self._notes_cell(row),
                 key=str(index),
             )
         if 0 <= cursor < len(ROWS):
@@ -235,9 +263,29 @@ class SettingsScreen(NextronScreen):
         self.query_one("#settings-footer", Static).update(
             Text(
                 f"Stored in {self.app.runtime.config_manager.path}",
-                style=constants.COLOR_SURFACE,
+                style=constants.INK_FAINT,
             )
         )
+
+    def _value_cell(self, setting: Setting) -> Text:
+        value = self._get(setting)
+        if setting.kind == "bool":
+            return signal.switch(bool(value))
+        text = Text(self._format_value(value, setting.kind), style=constants.ACCENT)
+        if setting.kind in ("enum", "interval"):
+            text.append("  ⇄", style=constants.INK_FAINT)
+        return text
+
+    @staticmethod
+    def _notes_cell(setting: Setting) -> Text:
+        when = applies(setting.path)
+        # Only "live" earns a colour: it is the exception worth noticing.
+        colour = constants.SIGNAL_OK if when == "live" else constants.INK_FAINT
+        text = Text(no_wrap=True, overflow="ellipsis")
+        text.append(f"{when:<12}", style=colour)
+        if setting.hint:
+            text.append(setting.hint, style=constants.INK_MUTED)
+        return text
 
     def _selected(self) -> Setting | None:
         row = self._row_at(self.query_one(DataTable).cursor_row)
@@ -348,11 +396,16 @@ class SettingsScreen(NextronScreen):
 
         self._sync_engines(setting)
         self.reload()
-        self.app.notify(
+        message = (
             f"{setting.label} = "
-            f"{self._format_value(self._get(setting), setting.kind)}",
-            title="Settings",
+            f"{self._format_value(self._get(setting), setting.kind)}"
         )
+        when = applies(setting.path)
+        if when != "live" and (
+            when == "next launch" or self.app.runtime.routing.active
+        ):
+            message += f"\nTakes effect on the {when}."
+        self.app.notify(message, title="Settings")
 
     @staticmethod
     def _coerce(setting: Setting, raw: Any) -> Any:
@@ -376,23 +429,43 @@ class SettingsScreen(NextronScreen):
         return str(raw).strip()
 
     def _sync_engines(self, setting: Setting) -> None:
-        """Push a changed value into the live engines that care about it."""
+        """Push a changed value into the live engines that care about it.
+
+        Switches act immediately: turning rotation on while Tor is up starts
+        the scheduler now, turning the DNS Shield off stops it now.
+        """
         runtime = self.app.runtime
-        if setting.path == "tor.rotation_interval":
-            runtime.tor_scheduler.set_interval(runtime.config.tor.rotation_interval)
-        elif setting.path == "vpn.shuffle_interval":
-            runtime.vpn_scheduler.set_interval(runtime.config.vpn.shuffle_interval)
-        elif setting.path == "vpn.shuffle_algorithm":
-            runtime.vpn.shuffle.set_algorithm(runtime.config.vpn.shuffle_algorithm)
-            runtime.state_manager.update_vpn(
-                shuffle_algorithm=runtime.config.vpn.shuffle_algorithm
+        config = runtime.config
+        path = setting.path
+        if path == "tor.rotation_enabled":
+            self.app.run_action_task(
+                runtime.set_tor_rotation(config.tor.rotation_enabled)
             )
-        elif setting.path == "vpn.killswitch_enabled":
-            runtime.vpn.killswitch.enabled = runtime.config.vpn.killswitch_enabled
-        elif setting.path == "log_level":
+        elif path == "vpn.shuffle_enabled":
+            self.app.run_action_task(
+                runtime.set_vpn_shuffle(config.vpn.shuffle_enabled)
+            )
+        elif path == "tor.rotation_interval":
+            runtime.tor_scheduler.set_interval(config.tor.rotation_interval)
+        elif path == "vpn.shuffle_interval":
+            runtime.vpn_scheduler.set_interval(config.vpn.shuffle_interval)
+        elif path == "vpn.shuffle_algorithm":
+            runtime.vpn.shuffle.set_algorithm(config.vpn.shuffle_algorithm)
+            runtime.state_manager.update_vpn(
+                shuffle_algorithm=config.vpn.shuffle_algorithm
+            )
+        elif path == "vpn.killswitch_enabled":
+            runtime.vpn.killswitch.enabled = config.vpn.killswitch_enabled
+        elif path == "dns.enabled":
+            wanted = config.dns.enabled
+            # Only follow the switch inside a live route: with nothing
+            # connected the Shield simply starts (or not) with the next route.
+            if runtime.routing.active and wanted != runtime.dns.running:
+                self.app.run_action_task(runtime.toggle_dns_shield())
+        elif path == "log_level":
             from nextron.utils.logging import setup_logging
 
-            setup_logging(runtime.config.log_level)
+            setup_logging(config.log_level)
 
     def action_reload(self) -> None:
         self.app.runtime.config_manager.load()

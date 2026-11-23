@@ -105,10 +105,21 @@ async def test_tor_rotation_toggle_persists(app):
         await pilot.press("escape")
         await pilot.pause(0.8)
 
-        before = app.runtime.tor_scheduler.running
+        from nextron.core.config import ConfigManager
+
+        before = app.runtime.config.tor.rotation_enabled
         await pilot.press("r")
         await pilot.pause(0.6)
-        assert app.runtime.tor_scheduler.running is not before
+        # R is a switch: it flips (and saves) the preference...
+        assert app.runtime.config.tor.rotation_enabled is not before
+        assert app.runtime.state.tor.rotation_enabled is not before
+        assert ConfigManager().load().tor.rotation_enabled is not before
+        # ...without starting a scheduler while there is no Tor to rotate.
+        assert app.runtime.tor_scheduler.running is False
+
+        await pilot.press("r")
+        await pilot.pause(0.6)
+        assert app.runtime.config.tor.rotation_enabled is before
 
 
 async def test_about_screen_exposes_the_developer_information(app):
@@ -1061,3 +1072,154 @@ async def test_every_setting_is_still_reachable_and_editable(app):
         for setting in SETTINGS:
             row = SettingsScreen.row_of(setting.path)
             assert ROWS[row] is setting
+
+
+# -- switches ---------------------------------------------------------------- #
+
+
+async def _open_settings(pilot):
+    await pilot.pause(0.3)
+    await pilot.press("escape")
+    await pilot.pause(0.8)
+    await pilot.press("s")
+    await pilot.pause(0.6)
+
+
+async def test_every_settings_switch_flips_and_persists(app):
+    """Each boolean row is a switch: Enter flips it, config.toml records it."""
+    from nextron.core.config import ConfigManager
+    from nextron.tui.screens.settings import SETTINGS, SettingsScreen
+
+    switches = [s for s in SETTINGS if s.kind == "bool"]
+    assert switches
+
+    async with app.run_test(size=SIZE) as pilot:
+        await _open_settings(pilot)
+        screen = app.screen
+        assert isinstance(screen, SettingsScreen)
+        table = screen.query_one("#settings-table")
+
+        for setting in switches:
+            before = bool(screen._get(setting))
+            table.move_cursor(row=SettingsScreen.row_of(setting.path))
+            await pilot.press("enter")
+            await pilot.pause(0.15)
+            assert bool(screen._get(setting)) is (not before), setting.path
+
+            stored = ConfigManager().load()
+            target = stored
+            for part in setting.path.split("."):
+                target = getattr(target, part)
+            assert bool(target) is (not before), f"{setting.path} not saved"
+
+            # Flip back so later switches see the defaults.
+            await pilot.press("enter")
+            await pilot.pause(0.15)
+            assert bool(screen._get(setting)) is before
+
+
+async def test_settings_rotation_switch_updates_the_dashboard_state(app):
+    from nextron.tui.screens.settings import SettingsScreen
+
+    async with app.run_test(size=SIZE) as pilot:
+        await _open_settings(pilot)
+        table = app.screen.query_one("#settings-table")
+        before = app.runtime.config.tor.rotation_enabled
+        table.move_cursor(row=SettingsScreen.row_of("tor.rotation_enabled"))
+        await pilot.press("enter")
+        await pilot.pause(0.5)
+        assert app.runtime.state.tor.rotation_enabled is (not before)
+        # Disconnected: a switch never starts a scheduler with nothing to rotate.
+        assert app.runtime.tor_scheduler.running is False
+
+
+async def test_settings_shows_when_a_change_takes_effect(app):
+    from nextron.tui.screens.settings import SETTINGS, SettingsScreen, applies
+
+    assert applies("tor.rotation_enabled") == "live"
+    assert applies("tor.socks_port") == "next connect"
+    assert applies("interface.splash_seconds") == "next launch"
+
+    async with app.run_test(size=SIZE) as pilot:
+        await _open_settings(pilot)
+        for setting in SETTINGS:
+            notes = render_text(SettingsScreen._notes_cell(setting))
+            assert applies(setting.path) in notes
+
+
+async def test_shuffle_switch_key_flips_the_preference(app):
+    async with app.run_test(size=SIZE) as pilot:
+        await pilot.pause(0.3)
+        await pilot.press("escape")
+        await pilot.pause(0.8)
+        before = app.runtime.config.vpn.shuffle_enabled
+        await pilot.press("f")
+        await pilot.pause(0.6)
+        assert app.runtime.config.vpn.shuffle_enabled is (not before)
+        assert app.runtime.vpn_scheduler.running is False
+
+
+async def test_pressing_c_again_cancels_a_connect_and_cleans_up(app, monkeypatch):
+    import asyncio as _asyncio
+
+    from nextron.state.manager import ServiceStatus
+
+    started = _asyncio.Event()
+    stopped = []
+    running = {"value": False}
+
+    async def slow_start():
+        running["value"] = True
+        started.set()
+        await _asyncio.sleep(3600)
+
+    async def stop():
+        stopped.append(True)
+        running["value"] = False
+
+    async def no_baseline():
+        return None
+
+    runtime = app.runtime
+    monkeypatch.setattr(runtime.tor, "start", slow_start)
+    monkeypatch.setattr(runtime.tor, "stop", stop)
+    monkeypatch.setattr(
+        type(runtime.tor), "running", property(lambda s: running["value"])
+    )
+    monkeypatch.setattr(runtime.routing.verification, "capture_baseline", no_baseline)
+    runtime.config.routing_mode = runtime.config.routing_mode.TOR_ONLY
+
+    async with app.run_test(size=SIZE) as pilot:
+        await pilot.pause(0.3)
+        await pilot.press("escape")
+        await pilot.pause(0.8)
+
+        await pilot.press("c")
+        await _asyncio.wait_for(started.wait(), timeout=5)
+        assert runtime.state.route_status is ServiceStatus.STARTING
+
+        await pilot.press("c")
+        for _ in range(20):
+            await pilot.pause(0.2)
+            if stopped:
+                break
+
+        assert stopped, "the half-started Tor daemon was stopped"
+        assert runtime.routing.active is False
+        assert runtime.routing.busy is False
+        assert runtime.state.route_status is ServiceStatus.IDLE
+
+
+async def test_activity_log_wraps_instead_of_cropping(app):
+    async with app.run_test(size=SIZE) as pilot:
+        await pilot.pause(0.3)
+        await pilot.press("escape")
+        await pilot.pause(0.8)
+        log = app.screen.query_one("#panel-activity")
+        message = "a long message " * 8
+        log.append(message.strip())
+        await pilot.pause(0.3)
+        width = log.scrollable_content_region.width
+        assert all(len(strip.text) <= width for strip in log.lines)
+        joined = " ".join(strip.text.strip() for strip in log.lines)
+        assert "a long message a long message" in joined
